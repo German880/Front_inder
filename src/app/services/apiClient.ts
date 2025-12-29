@@ -1,34 +1,170 @@
 /**
- * API Client centralizado
- * Gestiona: autenticación, errores, interceptores, base URL
+ * API CLIENT ACTUALIZADO PARA INDERDB
+ * 
+ * CAMBIOS PRINCIPALES:
+ * 1. Nuevos servicios para catálogos (tipos_documento, sexos, estados)
+ * 2. Servicios actualizados que usan catalogo_items
+ * 3. Respuestas con respuesta_grupos (no respuesta_formulario directo)
+ * 4. JOINs a catalogo_items para obtener labels
  */
 
-import axios, {
-  AxiosInstance,
-  AxiosError,
-  InternalAxiosRequestConfig,
-  AxiosResponse,
-} from 'axios';
+import axios, { AxiosInstance } from 'axios';
 
 // ============================================================================
 // CONFIGURACIÓN
 // ============================================================================
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_TIMEOUT = parseInt(import.meta.env.VITE_API_TIMEOUT || '10000');
+
+console.log(`🚀 API Client inicializado con URL: ${API_BASE_URL}`);
 
 // ============================================================================
-// TIPOS DE ERROR
+// TIPOS DE RESPUESTA
 // ============================================================================
 
-export class ApiError extends Error {
-  constructor(
-    public status: number,
-    public data: any,
-    message: string
-  ) {
-    super(message);
-    this.name = 'ApiError';
-  }
+export interface ApiResponse<T = any> {
+  success: boolean;
+  data?: T;
+  error?: string;
+  message?: string;
+}
+
+export interface PaginatedResponse<T> {
+  items: T[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+}
+
+// ============================================================================
+// TIPOS PARA INDERDB (11 TABLAS)
+// ============================================================================
+
+// NIVEL 1: CATÁLOGOS
+export interface Catalogo {
+  id: string; // UUID
+  nombre: string;
+  descripcion?: string;
+}
+
+export interface CatalogoItem {
+  id: string; // UUID
+  catalogo_id: string; // FK
+  codigo?: string;
+  nombre: string;
+  activo: boolean;
+}
+
+// NIVEL 2: ENTIDADES PRINCIPALES
+export interface Deportista {
+  id?: string; // UUID
+  tipo_documento_id: string; // FK → catalogo_items
+  numero_documento: string; // UNIQUE
+  nombres: string;
+  apellidos: string;
+  fecha_nacimiento: string; // ISO date
+  sexo_id: string; // FK → catalogo_items
+  telefono?: string;
+  email?: string;
+  direccion?: string;
+  estado_id: string; // FK → catalogo_items
+  created_at?: string;
+  // Relaciones cargadas (para SELECT con JOINs)
+  tipo_documento?: CatalogoItem;
+  sexo?: CatalogoItem;
+  estado?: CatalogoItem;
+}
+
+export interface Formulario {
+  id?: string; // UUID
+  nombre: string;
+  modulo: string;
+  activo: boolean;
+  campos?: FormularioCampo[];
+}
+
+export interface FormularioCampo {
+  id?: string; // UUID
+  formulario_id: string; // FK
+  etiqueta: string;
+  tipo_campo: string; // text, number, date, select, textarea
+  requerido: boolean;
+  orden?: number;
+  catalogo_id?: string; // FK (opcional, para campos select)
+  catalogo?: Catalogo;
+}
+
+// NIVEL 3: DOCUMENTOS
+export interface HistoriaClinica {
+  id?: string; // UUID
+  deportista_id: string; // FK
+  fecha_apertura: string; // ISO date
+  estado_id: string; // FK → catalogo_items
+  created_at?: string;
+  // Relaciones
+  deportista?: Deportista;
+  estado?: CatalogoItem;
+  grupos?: RespuestaGrupo[];
+  respuestas?: FormularioRespuesta[];
+  archivos?: ArchivoCinico[];
+}
+
+export interface Cita {
+  id?: string; // UUID
+  deportista_id: string; // FK
+  fecha: string; // ISO date
+  hora: string; // HH:MM:SS
+  tipo_cita_id: string; // FK → catalogo_items
+  estado_cita_id: string; // FK → catalogo_items
+  observaciones?: string;
+  created_at?: string;
+  // Relaciones
+  deportista?: Deportista;
+  tipo_cita?: CatalogoItem;
+  estado_cita?: CatalogoItem;
+}
+
+// NIVEL 4: RESPUESTAS
+export interface RespuestaGrupo {
+  id?: string; // UUID
+  historia_clinica_id: string; // FK
+  formulario_id: string; // FK
+  created_at?: string;
+  // Relaciones
+  formulario?: Formulario;
+  respuestas?: FormularioRespuesta[];
+}
+
+export interface FormularioRespuesta {
+  id?: string; // UUID
+  formulario_id: string; // FK
+  historia_clinica_id: string; // FK
+  campo_id: string; // FK
+  valor?: string;
+  created_at?: string;
+  grupo_id?: string; // FK
+  // Relaciones
+  campo?: FormularioCampo;
+}
+
+export interface ArchivoCinico {
+  id?: string; // UUID
+  historia_clinica_id: string; // FK
+  formulario_id?: string; // FK (opcional)
+  grupo_id?: string; // FK (opcional)
+  nombre_archivo?: string;
+  ruta_archivo: string;
+  tipo_archivo?: string;
+  created_at?: string;
+}
+
+export interface PlantillaClinica {
+  id?: string; // UUID
+  sistema: string;
+  contenido: string;
+  activo: boolean;
 }
 
 // ============================================================================
@@ -37,348 +173,631 @@ export class ApiError extends Error {
 
 export const api: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 30000,
+  timeout: API_TIMEOUT,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// ============================================================================
-// INTERCEPTOR: Request (agregar token JWT)
-// ============================================================================
+// Interceptors
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('auth_token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
 
-api.interceptors.request.use(
-  (config: InternalAxiosRequestConfig) => {
-    const token = localStorage.getItem('access_token');
-
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-
-    return config;
+api.interceptors.response.use(
+  (response) => {
+    console.log(`✅ ${response.config.method?.toUpperCase()} ${response.config.url}`);
+    return response;
   },
   (error) => {
-    console.error('Request error:', error);
+    console.error('❌ Error:', error.response?.status, error.response?.data?.error);
+    if (error.response?.status === 401) {
+      localStorage.removeItem('auth_token');
+      window.location.href = '/login';
+    }
     return Promise.reject(error);
   }
 );
 
 // ============================================================================
-// INTERCEPTOR: Response (manejar errores globales)
+// SERVICIOS: CATÁLOGOS ← NUEVO
 // ============================================================================
 
-api.interceptors.response.use(
-  (response: AxiosResponse) => response,
-  (error: AxiosError) => {
-    if (error.response?.status === 401) {
-      // Token expirado o inválido
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('user');
-      // Redirigir a login (esto se hace en tu router)
-      window.dispatchEvent(new Event('unauthorized'));
-    }
+export const catalogosService = {
+  /**
+   * Obtener todos los catálogos
+   * GET /api/v1/catalogos
+   */
+  async getAll() {
+    const response = await api.get<Catalogo[]>('/catalogos');
+    return response.data;
+  },
 
-    const apiError = new ApiError(
-      error.response?.status || 500,
-      error.response?.data || null,
-      error.message || 'Error en la solicitud'
+  /**
+   * Obtener catálogo por nombre
+   * GET /api/v1/catalogos/:nombre
+   * 
+   * Ejemplo:
+   * getCatalogo('tipos_documento')
+   * getCatalogo('sexos')
+   * getCatalogo('estados')
+   * getCatalogo('tipos_cita')
+   * getCatalogo('estados_cita')
+   */
+  async getCatalogo(nombre: string) {
+    const response = await api.get<Catalogo>(`/catalogos/${nombre}`);
+    return response.data;
+  },
+
+  /**
+   * Obtener items de un catálogo
+   * GET /api/v1/catalogos/:nombre/items
+   * 
+   * Devuelve todos los CatalogoItems del catálogo
+   */
+  async getItems(nombreCatalogo: string) {
+    const response = await api.get<CatalogoItem[]>(
+      `/catalogos/${nombreCatalogo}/items`
     );
+    return response.data;
+  },
 
-    return Promise.reject(apiError);
-  }
-);
+  /**
+   * Obtener tipos de documento
+   * GET /api/v1/catalogos/tipos_documento/items
+   */
+  async getTiposDocumento() {
+    return this.getItems('tipos_documento');
+  },
+
+  /**
+   * Obtener sexos
+   * GET /api/v1/catalogos/sexos/items
+   */
+  async getSexos() {
+    return this.getItems('sexos');
+  },
+
+  /**
+   * Obtener estados de deportista
+   * GET /api/v1/catalogos/estados/items
+   */
+  async getEstadosDeportista() {
+    return this.getItems('estados');
+  },
+
+  /**
+   * Obtener tipos de cita
+   * GET /api/v1/catalogos/tipos_cita/items
+   */
+  async getTiposCita() {
+    return this.getItems('tipos_cita');
+  },
+
+  /**
+   * Obtener estados de cita
+   * GET /api/v1/catalogos/estados_cita/items
+   */
+  async getEstadosCita() {
+    return this.getItems('estados_cita');
+  },
+
+  /**
+   * Obtener todos los catálogos en una sola llamada
+   * Útil para inicializar la aplicación
+   */
+  async getAllCatalogos() {
+    return Promise.all([
+      this.getTiposDocumento(),
+      this.getSexos(),
+      this.getEstadosDeportista(),
+      this.getTiposCita(),
+      this.getEstadosCita(),
+    ]).then(([tiposDoc, sexos, estados, tiposCita, estadosCita]) => ({
+      tiposDocumento: tiposDoc,
+      sexos,
+      estados,
+      tiposCita,
+      estadosCita,
+    }));
+  },
+};
 
 // ============================================================================
-// SERVICIO: DEPORTISTAS
+// SERVICIOS: DEPORTISTAS (ACTUALIZADO)
 // ============================================================================
-
-export interface Deportista {
-  id: string;
-  nombreCompleto: string;
-  fechaNacimiento: string;
-  genero: 'masculino' | 'femenino' | 'otro';
-  numeroDocumento: string;
-  tipoDocumento: 'cedula' | 'pasaporte' | 'otro';
-  email: string;
-  telefonoContacto: string;
-  alturaCm: number;
-  pesoKg: number;
-  tipoSangre: string;
-  observaciones?: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface CreateDeportistaDTO {
-  nombreCompleto: string;
-  fechaNacimiento: string;
-  genero: 'masculino' | 'femenino' | 'otro';
-  otroGenero?: string;
-  numeroDocumento: string;
-  tipoDocumento: 'cedula' | 'pasaporte' | 'otro';
-  email: string;
-  telefonoContacto: string;
-  alturaCm: number;
-  pesoKg: number;
-  tipoSangre: string;
-  observaciones?: string;
-}
 
 export const deportistasService = {
   /**
-   * Obtener todos los deportistas
-   * GET /deportistas
+   * Obtener todos los deportistas con JOINs a catálogos
+   * GET /api/v1/deportistas
    */
-  getAll: async (): Promise<Deportista[]> => {
-    const { data } = await api.get<Deportista[]>('/deportistas');
-    return data;
+  async getAll(page: number = 1, page_size: number = 10) {
+    const response = await api.get<PaginatedResponse<Deportista>>(
+      '/deportistas',
+      {
+        params: { page, page_size },
+      }
+    );
+    return response.data;
   },
 
   /**
-   * Obtener un deportista por ID
-   * GET /deportistas/{id}
+   * Obtener deportista por ID con todas las relaciones
+   * GET /api/v1/deportistas/:id
    */
-  getById: async (id: string): Promise<Deportista> => {
-    const { data } = await api.get<Deportista>(`/deportistas/${id}`);
-    return data;
+  async getById(id: string) {
+    const response = await api.get<Deportista>(`/deportistas/${id}`);
+    return response.data;
   },
 
   /**
-   * Crear un nuevo deportista
-   * POST /deportistas
+   * Buscar deportistas por nombre, apellido o documento
+   * GET /api/v1/deportistas/search?q=...
    */
-  create: async (deportista: CreateDeportistaDTO): Promise<Deportista> => {
-    const { data } = await api.post<Deportista>('/deportistas', deportista);
-    return data;
-  },
-
-  /**
-   * Actualizar un deportista
-   * PUT /deportistas/{id}
-   */
-  update: async (id: string, deportista: Partial<CreateDeportistaDTO>): Promise<Deportista> => {
-    const { data } = await api.put<Deportista>(`/deportistas/${id}`, deportista);
-    return data;
-  },
-
-  /**
-   * Eliminar un deportista
-   * DELETE /deportistas/{id}
-   */
-  delete: async (id: string): Promise<void> => {
-    await api.delete(`/deportistas/${id}`);
-  },
-
-  /**
-   * Buscar deportistas
-   * GET /deportistas/search?q=query
-   */
-  search: async (query: string): Promise<Deportista[]> => {
-    const { data } = await api.get<Deportista[]>('/deportistas/search', {
+  async search(query: string) {
+    const response = await api.get<Deportista[]>('/deportistas/search', {
       params: { q: query },
     });
-    return data;
+    return response.data;
+  },
+
+  /**
+   * Crear nuevo deportista
+   * POST /api/v1/deportistas
+   * 
+   * El body debe incluir:
+   * {
+   *   tipo_documento_id: "uuid-cc",  // FK → catalogo_items
+   *   numero_documento: "1234567890",
+   *   nombres: "Juan",
+   *   apellidos: "Pérez",
+   *   fecha_nacimiento: "1990-01-15",
+   *   sexo_id: "uuid-masculino",      // FK → catalogo_items
+   *   telefono?: "3001234567",
+   *   email?: "juan@example.com",
+   *   direccion?: "Calle 123",
+   *   estado_id: "uuid-activo"        // FK → catalogo_items
+   * }
+   */
+  async create(data: Deportista) {
+    const response = await api.post<Deportista>('/deportistas', data);
+    return response.data;
+  },
+
+  /**
+   * Actualizar deportista
+   * PUT /api/v1/deportistas/:id
+   */
+  async update(id: string, data: Partial<Deportista>) {
+    const response = await api.put<Deportista>(`/deportistas/${id}`, data);
+    return response.data;
+  },
+
+  /**
+   * Eliminar deportista
+   * DELETE /api/v1/deportistas/:id
+   */
+  async delete(id: string) {
+    await api.delete(`/deportistas/${id}`);
   },
 };
 
 // ============================================================================
-// SERVICIO: HISTORIA CLÍNICA
+// SERVICIOS: HISTORIAS CLÍNICAS (ACTUALIZADO)
 // ============================================================================
-
-export interface AntecedentePersonal {
-  codigo: string;
-  nombre: string;
-  observacion?: string;
-}
-
-export interface AntecedenteFamiliar {
-  codigo: string;
-  nombre: string;
-  familiar: string;
-  observacion?: string;
-}
-
-export interface HistoriaClinica {
-  id: string;
-  deportistaId: string;
-  
-  // Antecedentes
-  antecedentesPersonales: AntecedentePersonal[];
-  antecedentesFamiliares: AntecedenteFamiliar[];
-  vacunas: string[];
-  alergias: AntecedentePersonal[];
-  
-  // Examen físico
-  presionArterial: string;
-  frecuenciaCardiaca: number;
-  frecuenciaRespiratoria: number;
-  temperatura: number;
-  
-  // Diagnóstico
-  diagnosticos: Array<{ codigo: string; nombre: string }>;
-  
-  // Plan de tratamiento
-  planTratamiento: string;
-  observaciones?: string;
-  
-  createdAt: string;
-  updatedAt: string;
-}
 
 export const historiaClinicaService = {
   /**
-   * Obtener historia clínica de un deportista
-   * GET /deportistas/{id}/historia-clinica
+   * Obtener todas las historias
+   * GET /api/v1/historias_clinicas
    */
-  getByDeportista: async (deportistaId: string): Promise<HistoriaClinica> => {
-    const { data } = await api.get<HistoriaClinica>(
-      `/deportistas/${deportistaId}/historia-clinica`
+  async getAll(page: number = 1, page_size: number = 10) {
+    const response = await api.get<PaginatedResponse<HistoriaClinica>>(
+      '/historias_clinicas',
+      {
+        params: { page, page_size },
+      }
     );
-    return data;
+    return response.data;
   },
 
   /**
-   * Crear o actualizar historia clínica
-   * POST/PUT /deportistas/{id}/historia-clinica
+   * Obtener historia por ID con todas las relaciones
+   * GET /api/v1/historias_clinicas/:id
    */
-  save: async (
-    deportistaId: string,
-    historiaClinica: Partial<HistoriaClinica>
-  ): Promise<HistoriaClinica> => {
-    const { data } = await api.post<HistoriaClinica>(
-      `/deportistas/${deportistaId}/historia-clinica`,
-      historiaClinica
+  async getById(id: string) {
+    const response = await api.get<HistoriaClinica>(`/historias_clinicas/${id}`);
+    return response.data;
+  },
+
+  /**
+   * Obtener historias de un deportista
+   * GET /api/v1/deportistas/:deportista_id/historias_clinicas
+   */
+  async getByDeportistaId(deportistaId: string) {
+    const response = await api.get<HistoriaClinica[]>(
+      `/deportistas/${deportistaId}/historias_clinicas`
     );
-    return data;
+    return response.data;
+  },
+
+  /**
+   * Crear nueva historia clínica
+   * POST /api/v1/historias_clinicas
+   * 
+   * {
+   *   deportista_id: "uuid-123",
+   *   fecha_apertura: "2025-01-29",
+   *   estado_id: "uuid-abierta"      // FK → catalogo_items
+   * }
+   */
+  async create(data: HistoriaClinica) {
+    const response = await api.post<HistoriaClinica>(
+      '/historias_clinicas',
+      data
+    );
+    return response.data;
+  },
+
+  /**
+   * Actualizar historia clínica
+   * PUT /api/v1/historias_clinicas/:id
+   */
+  async update(id: string, data: Partial<HistoriaClinica>) {
+    const response = await api.put<HistoriaClinica>(
+      `/historias_clinicas/${id}`,
+      data
+    );
+    return response.data;
+  },
+
+  /**
+   * Eliminar historia clínica
+   * DELETE /api/v1/historias_clinicas/:id
+   */
+  async delete(id: string) {
+    await api.delete(`/historias_clinicas/${id}`);
   },
 };
 
 // ============================================================================
-// SERVICIO: AUTENTICACIÓN (EJEMPLO)
+// SERVICIOS: RESPUESTA GRUPOS ← ACTUALIZADO (ANTES respuesta_formulario)
 // ============================================================================
 
-export interface LoginRequest {
-  email: string;
-  password: string;
-}
-
-export interface AuthResponse {
-  access_token: string;
-  token_type: string;
-  user: {
-    id: string;
-    email: string;
-    rol: 'medico' | 'admin' | 'entrenador';
-  };
-}
-
-export const authService = {
+export const respuestaGruposService = {
   /**
-   * Login
-   * POST /auth/login
+   * Crear grupo de respuestas
+   * POST /api/v1/respuesta_grupos
+   * 
+   * {
+   *   historia_clinica_id: "uuid-historia",
+   *   formulario_id: "uuid-formulario"
+   * }
    */
-  login: async (credentials: LoginRequest): Promise<AuthResponse> => {
-    const { data } = await api.post<AuthResponse>('/auth/login', credentials);
-    
-    // Guardar token
-    localStorage.setItem('access_token', data.access_token);
-    localStorage.setItem('user', JSON.stringify(data.user));
-    
-    return data;
+  async create(data: RespuestaGrupo) {
+    const response = await api.post<RespuestaGrupo>(
+      '/respuesta_grupos',
+      data
+    );
+    return response.data;
   },
 
   /**
-   * Logout
+   * Obtener grupos de respuestas de una historia
+   * GET /api/v1/historias_clinicas/:id/respuesta_grupos
    */
-  logout: () => {
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('user');
-  },
-
-  /**
-   * Verificar si está autenticado
-   */
-  isAuthenticated: (): boolean => {
-    return !!localStorage.getItem('access_token');
-  },
-
-  /**
-   * Obtener usuario actual
-   */
-  getCurrentUser: () => {
-    const user = localStorage.getItem('user');
-    return user ? JSON.parse(user) : null;
+  async getByHistoriaId(historiaId: string) {
+    const response = await api.get<RespuestaGrupo[]>(
+      `/historias_clinicas/${historiaId}/respuesta_grupos`
+    );
+    return response.data;
   },
 };
 
 // ============================================================================
-// MANEJO CENTRALIZADO DE ERRORES
+// SERVICIOS: FORMULARIO RESPUESTAS ← ACTUALIZADO
 // ============================================================================
 
-/**
- * Función auxiliar para formatear errores de API
- * @param error Error de axios
- * @returns Mensaje de error formateado
- */
-export function getErrorMessage(error: unknown): string {
-  if (error instanceof ApiError) {
-    // Error de la API con detalles
-    if (error.data?.detail) {
-      return error.data.detail;
+export const formularioRespuestasService = {
+  /**
+   * Guardar respuesta de un campo
+   * POST /api/v1/formulario_respuestas
+   * 
+   * {
+   *   formulario_id: "uuid-formulario",
+   *   historia_clinica_id: "uuid-historia",
+   *   campo_id: "uuid-campo",
+   *   valor: "el valor respondido",
+   *   grupo_id: "uuid-grupo"
+   * }
+   */
+  async create(data: FormularioRespuesta) {
+    const response = await api.post<FormularioRespuesta>(
+      '/formulario_respuestas',
+      data
+    );
+    return response.data;
+  },
+
+  /**
+   * Guardar múltiples respuestas de un grupo
+   * POST /api/v1/formulario_respuestas/bulk
+   */
+  async createBulk(respuestas: FormularioRespuesta[]) {
+    const response = await api.post<FormularioRespuesta[]>(
+      '/formulario_respuestas/bulk',
+      { respuestas }
+    );
+    return response.data;
+  },
+
+  /**
+   * Obtener respuestas de una historia clínica
+   * GET /api/v1/historias_clinicas/:id/formulario_respuestas
+   */
+  async getByHistoriaId(historiaId: string) {
+    const response = await api.get<FormularioRespuesta[]>(
+      `/historias_clinicas/${historiaId}/formulario_respuestas`
+    );
+    return response.data;
+  },
+
+  /**
+   * Obtener respuestas de un grupo específico
+   * GET /api/v1/respuesta_grupos/:id/respuestas
+   */
+  async getByGrupoId(grupoId: string) {
+    const response = await api.get<FormularioRespuesta[]>(
+      `/respuesta_grupos/${grupoId}/respuestas`
+    );
+    return response.data;
+  },
+};
+
+// ============================================================================
+// SERVICIOS: CITAS (ACTUALIZADO)
+// ============================================================================
+
+export const citasService = {
+  /**
+   * Obtener todas las citas
+   * GET /api/v1/citas
+   */
+  async getAll(page: number = 1, page_size: number = 10) {
+    const response = await api.get<PaginatedResponse<Cita>>('/citas', {
+      params: { page, page_size },
+    });
+    return response.data;
+  },
+
+  /**
+   * Obtener cita por ID
+   * GET /api/v1/citas/:id
+   */
+  async getById(id: string) {
+    const response = await api.get<Cita>(`/citas/${id}`);
+    return response.data;
+  },
+
+  /**
+   * Obtener citas de un deportista
+   * GET /api/v1/deportistas/:id/citas
+   */
+  async getByDeportistaId(deportistaId: string) {
+    const response = await api.get<Cita[]>(
+      `/deportistas/${deportistaId}/citas`
+    );
+    return response.data;
+  },
+
+  /**
+   * Obtener próximas citas
+   * GET /api/v1/deportistas/:id/citas/proximas
+   */
+  async getProximas(deportistaId: string) {
+    const response = await api.get<Cita[]>(
+      `/deportistas/${deportistaId}/citas/proximas`
+    );
+    return response.data;
+  },
+
+  /**
+   * Crear cita
+   * POST /api/v1/citas
+   * 
+   * {
+   *   deportista_id: "uuid-123",
+   *   fecha: "2025-02-01",
+   *   hora: "10:30:00",
+   *   tipo_cita_id: "uuid-evaluacion",    // FK → catalogo_items
+   *   estado_cita_id: "uuid-pendiente",   // FK → catalogo_items
+   *   observaciones?: "Traer documentos"
+   * }
+   */
+  async create(data: Cita) {
+    const response = await api.post<Cita>('/citas', data);
+    return response.data;
+  },
+
+  /**
+   * Actualizar cita
+   * PUT /api/v1/citas/:id
+   */
+  async update(id: string, data: Partial<Cita>) {
+    const response = await api.put<Cita>(`/citas/${id}`, data);
+    return response.data;
+  },
+
+  /**
+   * Eliminar cita
+   * DELETE /api/v1/citas/:id
+   */
+  async delete(id: string) {
+    await api.delete(`/citas/${id}`);
+  },
+};
+
+// ============================================================================
+// SERVICIOS: ARCHIVOS CLÍNICOS
+// ============================================================================
+
+export const archivosService = {
+  /**
+   * Obtener archivos de una historia
+   * GET /api/v1/historias_clinicas/:id/archivos_clinicos
+   */
+  async getByHistoriaId(historiaId: string) {
+    const response = await api.get<ArchivoCinico[]>(
+      `/historias_clinicas/${historiaId}/archivos_clinicos`
+    );
+    return response.data;
+  },
+
+  /**
+   * Subir archivo
+   * POST /api/v1/archivos_clinicos
+   */
+  async upload(data: {
+    historia_clinica_id: string;
+    formulario_id?: string;
+    grupo_id?: string;
+    archivo: File;
+  }) {
+    const formData = new FormData();
+    formData.append('historia_clinica_id', data.historia_clinica_id);
+    if (data.formulario_id) {
+      formData.append('formulario_id', data.formulario_id);
     }
-    if (error.data?.message) {
-      return error.data.message;
+    if (data.grupo_id) {
+      formData.append('grupo_id', data.grupo_id);
     }
-    return `Error ${error.status}: ${error.message}`;
-  }
+    formData.append('archivo', data.archivo);
 
-  if (axios.isAxiosError(error)) {
-    // Error de axios
-    return error.message || 'Error en la solicitud';
-  }
+    const response = await api.post<ArchivoCinico>(
+      '/archivos_clinicos',
+      formData,
+      {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      }
+    );
+    return response.data;
+  },
 
-  if (error instanceof Error) {
-    return error.message;
-  }
+  /**
+   * Descargar archivo
+   * GET /api/v1/archivos_clinicos/:id/descargar
+   */
+  async descargar(id: string) {
+    const response = await api.get(`/archivos_clinicos/${id}/descargar`, {
+      responseType: 'blob',
+    });
+    return response.data;
+  },
 
-  return 'Error desconocido';
-}
+  /**
+   * Eliminar archivo
+   * DELETE /api/v1/archivos_clinicos/:id
+   */
+  async delete(id: string) {
+    await api.delete(`/archivos_clinicos/${id}`);
+  },
+};
 
-/**
- * Función para mostrar notificaciones de error
- * @param error Error a mostrar
- */
-export function showErrorNotification(error: unknown): void {
-  const message = getErrorMessage(error);
-  
-  // Aquí integrar con tu sistema de notificaciones (toast, snackbar, etc)
-  console.error('Error:', message);
-  
-  // Ejemplo con Sonner:
-  // toast.error(message);
-}
+// ============================================================================
+// SERVICIOS: FORMULARIOS
+// ============================================================================
 
-/**
- * Retry logic para solicitudes fallidas
- * @param fn Función a ejecutar
- * @param retries Número de intentos
- * @param delay Delay entre intentos en ms
- */
-export async function retryRequest<T>(
-  fn: () => Promise<T>,
-  retries: number = 3,
-  delay: number = 1000
-): Promise<T> {
+export const formulariosService = {
+  /**
+   * Obtener todos los formularios
+   * GET /api/v1/formularios
+   */
+  async getAll() {
+    const response = await api.get<Formulario[]>('/formularios');
+    return response.data;
+  },
+
+  /**
+   * Obtener formulario con sus campos
+   * GET /api/v1/formularios/:id
+   */
+  async getById(id: string) {
+    const response = await api.get<Formulario>(`/formularios/${id}`);
+    return response.data;
+  },
+
+  /**
+   * Obtener formularios de un módulo
+   * GET /api/v1/formularios?modulo=historia_clinica
+   */
+  async getByModulo(modulo: string) {
+    const response = await api.get<Formulario[]>('/formularios', {
+      params: { modulo },
+    });
+    return response.data;
+  },
+};
+
+// ============================================================================
+// SERVICIOS: PLANTILLAS
+// ============================================================================
+
+export const plantillasService = {
+  /**
+   * Obtener plantilla por sistema
+   * GET /api/v1/plantillas_clinicas/:sistema
+   */
+  async getBySystem(sistema: string) {
+    const response = await api.get<PlantillaClinica>(
+      `/plantillas_clinicas/${sistema}`
+    );
+    return response.data;
+  },
+
+  /**
+   * Obtener todas las plantillas
+   * GET /api/v1/plantillas_clinicas
+   */
+  async getAll() {
+    const response = await api.get<PlantillaClinica[]>(
+      '/plantillas_clinicas'
+    );
+    return response.data;
+  },
+};
+
+// ============================================================================
+// HEALTH CHECK
+// ============================================================================
+
+export async function healthCheck(): Promise<boolean> {
   try {
-    return await fn();
-  } catch (error) {
-    if (retries === 0) {
-      throw error;
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, delay));
-    return retryRequest(fn, retries - 1, delay * 2);
+    const response = await api.get('/health');
+    return response.status === 200;
+  } catch {
+    return false;
   }
 }
 
-export default api;
+// ============================================================================
+// EXPORT DEFAULT
+// ============================================================================
+
+export default {
+  api,
+  catalogosService,
+  deportistasService,
+  historiaClinicaService,
+  respuestaGruposService,
+  formularioRespuestasService,
+  citasService,
+  archivosService,
+  formulariosService,
+  plantillasService,
+  healthCheck,
+};

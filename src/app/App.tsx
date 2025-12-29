@@ -6,7 +6,6 @@ import { Inicio } from "./components/Inicio";
 import { RegistroDeportista } from "./components/RegistroDeportista";
 import { HistoriaClinica } from "./components/HistoriaClinica";
 import { SelectDeportista } from "./components/SelectDeportista";
-import { GestionCitas } from "./components/GestionCitas";
 import { VistaPlaceholder } from "./components/VistaPlaceholder";
 import { deportistasService } from "./services";
 

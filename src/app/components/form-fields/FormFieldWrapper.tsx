@@ -1,13 +1,8 @@
-/**
- * Wrapper para campos de formulario
- * Centraliza: label, error message, helper text
- */
-
 import React from 'react';
 import { FieldError } from 'react-hook-form';
 import { AlertCircle } from 'lucide-react';
 
-export interface FormFieldWrapperProps {
+interface FormFieldWrapperProps {
   label: string;
   required?: boolean;
   error?: FieldError;
@@ -15,6 +10,10 @@ export interface FormFieldWrapperProps {
   children: React.ReactNode;
 }
 
+/**
+ * Wrapper para campos de formulario
+ * Centraliza: label, error message, helper text
+ */
 export const FormFieldWrapper: React.FC<FormFieldWrapperProps> = ({
   label,
   required,
@@ -41,3 +40,5 @@ export const FormFieldWrapper: React.FC<FormFieldWrapperProps> = ({
     </div>
   );
 };
+
+export default FormFieldWrapper;

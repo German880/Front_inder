@@ -1,59 +1,594 @@
 /**
- * Custom Hooks - Lógica reutilizable
- * Centralizan: estado, side effects, lógica de negocio
+ * CUSTOM HOOKS ACTUALIZADOS PARA INDERDB
+ * 
+ * NUEVOS HOOKS:
+ * - useCatalogos(): Carga todos los catálogos al iniciar
+ * - useCatalogo(nombre): Carga un catálogo específico
+ * - useDeportistasConCatalogos(): Lista deportistas con labels de catálogos
  */
 
-import { useState, useCallback, useEffect } from 'react';
-import { 
-  deportistasService, 
-  historiaClinicaService, 
-  Deportista, 
-  CreateDeportistaDTO,
+import { useState, useEffect, useCallback } from 'react';
+import { useForm, UseFormProps, FieldValues, SubmitHandler } from 'react-hook-form';
+import {
+  catalogosService,
+  deportistasService,
+  historiaClinicaService,
+  respuestaGruposService,
+  formularioRespuestasService,
+  citasService,
+  formulariosService,
+  CatalogoItem,
+  Deportista,
   HistoriaClinica,
-  ApiError,
-  getErrorMessage,
+  RespuestaGrupo,
+  FormularioRespuesta,
+  Cita,
+  Formulario,
 } from '../services/apiClient';
 
 // ============================================================================
-// TIPOS COMUNES
+// TIPOS PARA CATÁLOGOS
 // ============================================================================
 
-interface UseAsyncState<T> {
-  data: T | null;
+export interface CatalogosContexto {
+  tiposDocumento: CatalogoItem[];
+  sexos: CatalogoItem[];
+  estados: CatalogoItem[];
+  tiposCita: CatalogoItem[];
+  estadosCita: CatalogoItem[];
   loading: boolean;
   error: string | null;
 }
 
 // ============================================================================
-// HOOK: useAsync (GENÉRICO)
+// HOOK: useCatalogos ← NUEVO
 // ============================================================================
 
 /**
- * Hook genérico para manejar operaciones asincrónicas
- * @param asyncFunction Función async a ejecutar
- * @param immediate Si ejecutar inmediatamente
+ * Hook para cargar todos los catálogos al iniciar la aplicación
+ * 
+ * Uso:
+ * const { tiposDocumento, sexos, estados, loading } = useCatalogos();
+ * 
+ * if (loading) return <Loading />;
+ * 
+ * <Select name="tipo_documento_id" options={tiposDocumento} />
+ * <Select name="sexo_id" options={sexos} />
+ * <Select name="estado_id" options={estados} />
+ */
+export function useCatalogos(): CatalogosContexto {
+  const [tiposDocumento, setTiposDocumento] = useState<CatalogoItem[]>([]);
+  const [sexos, setSexos] = useState<CatalogoItem[]>([]);
+  const [estados, setEstados] = useState<CatalogoItem[]>([]);
+  const [tiposCita, setTiposCita] = useState<CatalogoItem[]>([]);
+  const [estadosCita, setEstadosCita] = useState<CatalogoItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const cargarCatalogos = async () => {
+      try {
+        setLoading(true);
+        const catalogos = await catalogosService.getAllCatalogos();
+        
+        setTiposDocumento(catalogos.tiposDocumento || []);
+        setSexos(catalogos.sexos || []);
+        setEstados(catalogos.estados || []);
+        setTiposCita(catalogos.tiposCita || []);
+        setEstadosCita(catalogos.estadosCita || []);
+        setError(null);
+      } catch (err) {
+        console.error('Error cargando catálogos:', err);
+        setError('Error al cargar los catálogos');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    cargarCatalogos();
+  }, []);
+
+  return {
+    tiposDocumento,
+    sexos,
+    estados,
+    tiposCita,
+    estadosCita,
+    loading,
+    error,
+  };
+}
+
+// ============================================================================
+// HOOK: useCatalogo
+// ============================================================================
+
+/**
+ * Hook para cargar un catálogo específico
+ * 
+ * Uso:
+ * const { items, loading } = useCatalogo('sexos');
+ * const { items: tipos } = useCatalogo('tipos_documento');
+ */
+export function useCatalogo(nombreCatalogo: string) {
+  const [items, setItems] = useState<CatalogoItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const cargar = async () => {
+      try {
+        setLoading(true);
+        const data = await catalogosService.getItems(nombreCatalogo);
+        setItems(data);
+        setError(null);
+      } catch (err) {
+        console.error(`Error cargando catálogo ${nombreCatalogo}:`, err);
+        setError(`Error al cargar ${nombreCatalogo}`);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    cargar();
+  }, [nombreCatalogo]);
+
+  return { items, loading, error };
+}
+
+// ============================================================================
+// HOOK: useDeportistas (ORIGINAL, SIGUE IGUAL)
+// ============================================================================
+
+interface UseDeportistasOptions {
+  page?: number;
+  pageSize?: number;
+}
+
+export function useDeportistas(options?: UseDeportistasOptions) {
+  const [deportistas, setDeportistas] = useState<Deportista[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(options?.page || 1);
+  const [pageSize] = useState(options?.pageSize || 10);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchDeportistas = useCallback(async (pageNum: number) => {
+    try {
+      setLoading(true);
+      const response = await deportistasService.getAll(pageNum, pageSize);
+      setDeportistas(response.items);
+      setTotal(response.total);
+      setPage(pageNum);
+      setError(null);
+    } catch (err) {
+      console.error('Error fetching deportistas:', err);
+      setError('Error al obtener deportistas');
+    } finally {
+      setLoading(false);
+    }
+  }, [pageSize]);
+
+  const searchDeportistas = useCallback(async (query: string) => {
+    try {
+      setLoading(true);
+      const results = await deportistasService.search(query);
+      setDeportistas(results);
+      setError(null);
+    } catch (err) {
+      console.error('Error searching deportistas:', err);
+      setError('Error al buscar deportistas');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchDeportistas(page);
+  }, [page, fetchDeportistas]);
+
+  return {
+    deportistas,
+    total,
+    page,
+    pageSize,
+    loading,
+    error,
+    fetchDeportistas,
+    searchDeportistas,
+  };
+}
+
+// ============================================================================
+// HOOK: useHistoriaClinica (ACTUALIZADO)
+// ============================================================================
+
+/**
+ * Hook para manejar historia clínica
+ * 
+ * CAMBIOS:
+ * - Ahora usa respuestaGruposService + formularioRespuestasService
+ * - No usa respuesta_formulario directamente
+ */
+export function useHistoriaClinica(historiaId?: string) {
+  const [historia, setHistoria] = useState<HistoriaClinica | null>(null);
+  const [grupos, setGrupos] = useState<RespuestaGrupo[]>([]);
+  const [respuestas, setRespuestas] = useState<FormularioRespuesta[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Cargar historia completa
+  const fetchHistoria = useCallback(async (id: string) => {
+    try {
+      setLoading(true);
+      const data = await historiaClinicaService.getById(id);
+      setHistoria(data);
+      setError(null);
+    } catch (err) {
+      console.error('Error fetching historia:', err);
+      setError('Error al obtener historia clínica');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Cargar grupos de respuestas
+  const fetchGrupos = useCallback(async (id: string) => {
+    try {
+      setLoading(true);
+      const data = await respuestaGruposService.getByHistoriaId(id);
+      setGrupos(data);
+    } catch (err) {
+      console.error('Error fetching grupos:', err);
+      setError('Error al obtener grupos de respuestas');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Cargar respuestas de la historia
+  const fetchRespuestas = useCallback(async (id: string) => {
+    try {
+      setLoading(true);
+      const data = await formularioRespuestasService.getByHistoriaId(id);
+      setRespuestas(data);
+    } catch (err) {
+      console.error('Error fetching respuestas:', err);
+      setError('Error al obtener respuestas');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Crear nueva historia
+  const crearHistoria = useCallback(async (data: HistoriaClinica) => {
+    try {
+      setLoading(true);
+      const nueva = await historiaClinicaService.create(data);
+      setHistoria(nueva);
+      setError(null);
+      return nueva;
+    } catch (err) {
+      console.error('Error creating historia:', err);
+      setError('Error al crear historia clínica');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Crear grupo de respuestas
+  const crearGrupo = useCallback(
+    async (data: RespuestaGrupo) => {
+      try {
+        setLoading(true);
+        const nuevoGrupo = await respuestaGruposService.create(data);
+        setGrupos([...grupos, nuevoGrupo]);
+        setError(null);
+        return nuevoGrupo;
+      } catch (err) {
+        console.error('Error creating grupo:', err);
+        setError('Error al crear grupo de respuestas');
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [grupos]
+  );
+
+  // Guardar respuestas (una o varias)
+  const guardarRespuestas = useCallback(
+    async (data: FormularioRespuesta | FormularioRespuesta[]) => {
+      try {
+        setLoading(true);
+        const esArray = Array.isArray(data);
+        
+        let nuevasRespuestas: FormularioRespuesta[];
+        if (esArray) {
+          nuevasRespuestas = await formularioRespuestasService.createBulk(
+            data as FormularioRespuesta[]
+          );
+        } else {
+          const respuesta = await formularioRespuestasService.create(
+            data as FormularioRespuesta
+          );
+          nuevasRespuestas = [respuesta];
+        }
+
+        setRespuestas([...respuestas, ...nuevasRespuestas]);
+        setError(null);
+        return nuevasRespuestas;
+      } catch (err) {
+        console.error('Error saving respuestas:', err);
+        setError('Error al guardar respuestas');
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [respuestas]
+  );
+
+  // Cargar todo al iniciar
+  useEffect(() => {
+    if (historiaId) {
+      fetchHistoria(historiaId);
+      fetchGrupos(historiaId);
+      fetchRespuestas(historiaId);
+    }
+  }, [historiaId, fetchHistoria, fetchGrupos, fetchRespuestas]);
+
+  return {
+    historia,
+    grupos,
+    respuestas,
+    loading,
+    error,
+    fetchHistoria,
+    fetchGrupos,
+    fetchRespuestas,
+    crearHistoria,
+    crearGrupo,
+    guardarRespuestas,
+  };
+}
+
+// ============================================================================
+// HOOK: useCitas (ACTUALIZADO)
+// ============================================================================
+
+export function useCitas(deportistaId?: string) {
+  const [citas, setCitas] = useState<Cita[]>([]);
+  const [proximasCitas, setProximasCitas] = useState<Cita[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Obtener todas las citas del deportista
+  const fetchCitas = useCallback(async (id: string) => {
+    try {
+      setLoading(true);
+      const data = await citasService.getByDeportistaId(id);
+      setCitas(data);
+      setError(null);
+    } catch (err) {
+      console.error('Error fetching citas:', err);
+      setError('Error al obtener citas');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Obtener próximas citas
+  const fetchProximasCitas = useCallback(async (id: string) => {
+    try {
+      setLoading(true);
+      const data = await citasService.getProximas(id);
+      setProximasCitas(data);
+    } catch (err) {
+      console.error('Error fetching proximas citas:', err);
+      setError('Error al obtener próximas citas');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Crear cita
+  const crearCita = useCallback(
+    async (data: Cita) => {
+      try {
+        setLoading(true);
+        const nueva = await citasService.create(data);
+        setCitas([...citas, nueva]);
+        setError(null);
+        return nueva;
+      } catch (err) {
+        console.error('Error creating cita:', err);
+        setError('Error al crear cita');
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [citas]
+  );
+
+  // Actualizar cita
+  const actualizarCita = useCallback(
+    async (id: string, data: Partial<Cita>) => {
+      try {
+        setLoading(true);
+        const actualizada = await citasService.update(id, data);
+        setCitas(citas.map((c) => (c.id === id ? actualizada : c)));
+        setError(null);
+        return actualizada;
+      } catch (err) {
+        console.error('Error updating cita:', err);
+        setError('Error al actualizar cita');
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [citas]
+  );
+
+  // Cargar citas al montar o cuando cambie deportistaId
+  useEffect(() => {
+    if (deportistaId) {
+      fetchCitas(deportistaId);
+      fetchProximasCitas(deportistaId);
+    }
+  }, [deportistaId, fetchCitas, fetchProximasCitas]);
+
+  return {
+    citas,
+    proximasCitas,
+    loading,
+    error,
+    fetchCitas,
+    fetchProximasCitas,
+    crearCita,
+    actualizarCita,
+  };
+}
+
+// ============================================================================
+// HOOK: useFormularios
+// ============================================================================
+
+/**
+ * Hook para obtener formularios
+ * 
+ * Uso:
+ * const { formularios, loading } = useFormularios('historia_clinica');
+ */
+export function useFormularios(modulo?: string) {
+  const [formularios, setFormularios] = useState<Formulario[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const cargar = async () => {
+      try {
+        setLoading(true);
+        const data = modulo
+          ? await formulariosService.getByModulo(modulo)
+          : await formulariosService.getAll();
+        setFormularios(data);
+        setError(null);
+      } catch (err) {
+        console.error('Error fetching formularios:', err);
+        setError('Error al obtener formularios');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    cargar();
+  }, [modulo]);
+
+  return { formularios, loading, error };
+}
+
+// ============================================================================
+// HOOK: useFormularioWithValidation (MEJORADO)
+// ============================================================================
+
+/**
+ * Hook que combina react-hook-form con validaciones personalizadas
+ * 
+ * Uso mejorado:
+ * const form = useFormularioWithValidation<DeportistaForm>(
+ *   {
+ *     defaultValues: {
+ *       tipo_documento_id: '',
+ *       numero_documento: '',
+ *       ...
+ *     },
+ *     mode: 'onChange',
+ *   },
+ *   {
+ *     numero_documento: {
+ *       validate: (value) => /^\d{6,20}$/.test(value) || 'Documento inválido',
+ *     },
+ *   }
+ * );
+ */
+export function useFormularioWithValidation<T extends FieldValues>(
+  options?: UseFormProps<T>,
+  customValidations?: Record<string, any>
+) {
+  const form = useForm<T>(options);
+
+  return {
+    ...form,
+    customValidations,
+    onSubmit: (callback: SubmitHandler<T>) =>
+      form.handleSubmit(async (data) => {
+        // Validaciones personalizadas
+        const errors: Record<string, string> = {};
+
+        if (customValidations) {
+          for (const [field, rules] of Object.entries(customValidations)) {
+            if (rules.validate) {
+              const error = await rules.validate((data as any)[field]);
+              if (error !== true) {
+                errors[field] = error;
+              }
+            }
+          }
+        }
+
+        if (Object.keys(errors).length > 0) {
+          Object.entries(errors).forEach(([field, message]) => {
+            form.setError(field as any, { message });
+          });
+          return;
+        }
+
+        // Si todas las validaciones pasaron, ejecutar callback
+        await callback(data);
+      }),
+  };
+}
+
+// ============================================================================
+// HOOK: useAsync (UTILIDAD)
+// ============================================================================
+
+/**
+ * Hook genérico para operaciones asincrónicas
+ * 
+ * Uso:
+ * const { data, loading, error, execute } = useAsync(
+ *   () => deportistasService.search('Juan'),
+ *   false
+ * );
  */
 export function useAsync<T>(
   asyncFunction: () => Promise<T>,
-  immediate: boolean = true
-): UseAsyncState<T> & { refetch: () => Promise<void> } {
-  const [state, setState] = useState<UseAsyncState<T>>({
-    data: null,
-    loading: immediate,
-    error: null,
-  });
+  immediate = true
+) {
+  const [status, setStatus] = useState<'idle' | 'pending' | 'success' | 'error'>(
+    'idle'
+  );
+  const [data, setData] = useState<T | null>(null);
+  const [error, setError] = useState<Error | null>(null);
 
   const execute = useCallback(async () => {
-    setState({ data: null, loading: true, error: null });
+    setStatus('pending');
+    setData(null);
+    setError(null);
+
     try {
       const response = await asyncFunction();
-      setState({ data: response, loading: false, error: null });
-    } catch (error) {
-      setState({
-        data: null,
-        loading: false,
-        error: getErrorMessage(error),
-      });
+      setData(response);
+      setStatus('success');
+      return response;
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error(String(err)));
+      setStatus('error');
     }
   }, [asyncFunction]);
 
@@ -63,374 +598,20 @@ export function useAsync<T>(
     }
   }, [execute, immediate]);
 
-  return {
-    ...state,
-    refetch: execute,
-  };
+  return { status, data, error, execute };
 }
 
 // ============================================================================
-// HOOK: useDeportistas
+// EXPORT DEFAULT
 // ============================================================================
 
-interface UseDeportistasReturn {
-  deportistas: Deportista[];
-  loading: boolean;
-  error: string | null;
-  refetch: () => Promise<void>;
-  createDeportista: (data: CreateDeportistaDTO) => Promise<Deportista>;
-  updateDeportista: (id: string, data: Partial<CreateDeportistaDTO>) => Promise<Deportista>;
-  deleteDeportista: (id: string) => Promise<void>;
-  searchDeportistas: (query: string) => Promise<void>;
-}
-
-export function useDeportistas(): UseDeportistasReturn {
-  const [deportistas, setDeportistas] = useState<Deportista[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // Cargar todos los deportistas
-  const refetch = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await deportistasService.getAll();
-      setDeportistas(data);
-    } catch (err) {
-      setError(getErrorMessage(err));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // Crear deportista
-  const createDeportista = useCallback(async (data: CreateDeportistaDTO) => {
-    setError(null);
-    try {
-      const newDeportista = await deportistasService.create(data);
-      setDeportistas((prev) => [...prev, newDeportista]);
-      return newDeportista;
-    } catch (err) {
-      setError(getErrorMessage(err));
-      throw err;
-    }
-  }, []);
-
-  // Actualizar deportista
-  const updateDeportista = useCallback(
-    async (id: string, data: Partial<CreateDeportistaDTO>) => {
-      setError(null);
-      try {
-        const updated = await deportistasService.update(id, data);
-        setDeportistas((prev) =>
-          prev.map((d) => (d.id === id ? updated : d))
-        );
-        return updated;
-      } catch (err) {
-        setError(getErrorMessage(err));
-        throw err;
-      }
-    },
-    []
-  );
-
-  // Eliminar deportista
-  const deleteDeportista = useCallback(async (id: string) => {
-    setError(null);
-    try {
-      await deportistasService.delete(id);
-      setDeportistas((prev) => prev.filter((d) => d.id !== id));
-    } catch (err) {
-      setError(getErrorMessage(err));
-      throw err;
-    }
-  }, []);
-
-  // Buscar deportistas
-  const searchDeportistas = useCallback(async (query: string) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await deportistasService.search(query);
-      setDeportistas(data);
-    } catch (err) {
-      setError(getErrorMessage(err));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // Cargar al montar
-  useEffect(() => {
-    refetch();
-  }, [refetch]);
-
-  return {
-    deportistas,
-    loading,
-    error,
-    refetch,
-    createDeportista,
-    updateDeportista,
-    deleteDeportista,
-    searchDeportistas,
-  };
-}
-
-// ============================================================================
-// HOOK: useHistoriaClinica
-// ============================================================================
-
-interface UseHistoriaClinicaReturn {
-  historiaClinica: HistoriaClinica | null;
-  loading: boolean;
-  error: string | null;
-  saveHistoriaClinica: (data: Partial<HistoriaClinica>) => Promise<void>;
-  refetch: () => Promise<void>;
-}
-
-export function useHistoriaClinica(deportistaId: string | null): UseHistoriaClinicaReturn {
-  const [historiaClinica, setHistoriaClinica] = useState<HistoriaClinica | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const refetch = useCallback(async () => {
-    if (!deportistaId) return;
-
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await historiaClinicaService.getByDeportista(deportistaId);
-      setHistoriaClinica(data);
-    } catch (err) {
-      setError(getErrorMessage(err));
-    } finally {
-      setLoading(false);
-    }
-  }, [deportistaId]);
-
-  const saveHistoriaClinica = useCallback(
-    async (data: Partial<HistoriaClinica>) => {
-      if (!deportistaId) throw new Error('Deportista ID es requerido');
-
-      setError(null);
-      try {
-        const updated = await historiaClinicaService.save(deportistaId, data);
-        setHistoriaClinica(updated);
-      } catch (err) {
-        setError(getErrorMessage(err));
-        throw err;
-      }
-    },
-    [deportistaId]
-  );
-
-  useEffect(() => {
-    refetch();
-  }, [refetch]);
-
-  return {
-    historiaClinica,
-    loading,
-    error,
-    saveHistoriaClinica,
-    refetch,
-  };
-}
-
-// ============================================================================
-// HOOK: usePagination
-// ============================================================================
-
-interface UsePaginationReturn {
-  currentPage: number;
-  pageSize: number;
-  totalPages: number;
-  goToPage: (page: number) => void;
-  nextPage: () => void;
-  prevPage: () => void;
-  setPageSize: (size: number) => void;
-}
-
-export function usePagination(
-  totalItems: number,
-  initialPageSize: number = 10
-): UsePaginationReturn {
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(initialPageSize);
-
-  const totalPages = Math.ceil(totalItems / pageSize);
-
-  const goToPage = useCallback((page: number) => {
-    const maxPage = Math.max(1, totalPages);
-    setCurrentPage(Math.min(Math.max(1, page), maxPage));
-  }, [totalPages]);
-
-  const nextPage = useCallback(() => {
-    goToPage(currentPage + 1);
-  }, [currentPage, goToPage]);
-
-  const prevPage = useCallback(() => {
-    goToPage(currentPage - 1);
-  }, [currentPage, goToPage]);
-
-  return {
-    currentPage,
-    pageSize,
-    totalPages,
-    goToPage,
-    nextPage,
-    prevPage,
-    setPageSize,
-  };
-}
-
-// ============================================================================
-// HOOK: useDebounce
-// ============================================================================
-
-/**
- * Hook para debounce de valores
- * @param value Valor a debounce
- * @param delay Delay en ms
- */
-export function useDebounce<T>(value: T, delay: number = 500): T {
-  const [debouncedValue, setDebouncedValue] = useState<T>(value);
-
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-
-    return () => clearTimeout(handler);
-  }, [value, delay]);
-
-  return debouncedValue;
-}
-
-// ============================================================================
-// HOOK: useLocalStorage
-// ============================================================================
-
-/**
- * Hook para sincronizar estado con localStorage
- * @param key Clave de localStorage
- * @param initialValue Valor inicial
- */
-export function useLocalStorage<T>(key: string, initialValue: T) {
-  const [storedValue, setStoredValue] = useState<T>(() => {
-    try {
-      const item = window.localStorage.getItem(key);
-      return item ? JSON.parse(item) : initialValue;
-    } catch (error) {
-      console.error(error);
-      return initialValue;
-    }
-  });
-
-  const setValue = (value: T | ((val: T) => T)) => {
-    try {
-      const valueToStore = value instanceof Function ? value(storedValue) : value;
-      setStoredValue(valueToStore);
-      window.localStorage.setItem(key, JSON.stringify(valueToStore));
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  return [storedValue, setValue] as const;
-}
-
-// ============================================================================
-// HOOK: useFormState (para formularios complejos)
-// ============================================================================
-
-interface UseFormStateReturn<T> {
-  formData: T;
-  errors: Record<string, string>;
-  setFormData: (data: Partial<T>) => void;
-  setError: (field: string, message: string) => void;
-  clearError: (field: string) => void;
-  clearErrors: () => void;
-  resetFormData: () => void;
-}
-
-export function useFormState<T extends Record<string, any>>(
-  initialData: T
-): UseFormStateReturn<T> {
-  const [formData, setFormDataState] = useState<T>(initialData);
-  const [errors, setErrorsState] = useState<Record<string, string>>({});
-
-  const setFormData = useCallback((data: Partial<T>) => {
-    setFormDataState((prev) => ({ ...prev, ...data }));
-  }, []);
-
-  const setError = useCallback((field: string, message: string) => {
-    setErrorsState((prev) => ({ ...prev, [field]: message }));
-  }, []);
-
-  const clearError = useCallback((field: string) => {
-    setErrorsState((prev) => {
-      const newErrors = { ...prev };
-      delete newErrors[field];
-      return newErrors;
-    });
-  }, []);
-
-  const clearErrors = useCallback(() => {
-    setErrorsState({});
-  }, []);
-
-  const resetFormData = useCallback(() => {
-    setFormDataState(initialData);
-    setErrorsState({});
-  }, [initialData]);
-
-  return {
-    formData,
-    errors,
-    setFormData,
-    setError,
-    clearError,
-    clearErrors,
-    resetFormData,
-  };
-}
-
-// ============================================================================
-// HOOK: useIsMounted
-// ============================================================================
-
-/**
- * Hook para verificar si el componente está montado
- * Útil para evitar memory leaks en operaciones async
- */
-export function useIsMounted(): boolean {
-  const [isMounted, setIsMounted] = useState(false);
-
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
-  return isMounted;
-}
-
-// ============================================================================
-// HOOK: usePrevious
-// ============================================================================
-
-/**
- * Hook para obtener el valor anterior de una prop
- * @param value Valor actual
- */
-export function usePrevious<T>(value: T): T | undefined {
-  const ref = React.useRef<T | undefined>(undefined);
-
-  useEffect(() => {
-    ref.current = value;
-  }, [value]);
-
-  return ref.current;
-}
-
-import * as React from 'react';
+export default {
+  useCatalogos,
+  useCatalogo,
+  useDeportistas,
+  useHistoriaClinica,
+  useCitas,
+  useFormularios,
+  useFormularioWithValidation,
+  useAsync,
+};

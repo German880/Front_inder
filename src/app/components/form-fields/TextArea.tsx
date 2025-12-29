@@ -1,16 +1,11 @@
-/**
- * TextArea reutilizable
- */
-
 import React from 'react';
 import { FieldError, UseFormRegisterReturn } from 'react-hook-form';
-
-import { FormFieldWrapper } from './FormFieldWrapper';
+import { AlertCircle } from 'lucide-react';
 
 export interface TextAreaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
   label: string;
   required?: boolean;
-  error?: FieldError;
+  error?: FieldError | string;
   helperText?: string;
   registration?: UseFormRegisterReturn;
 }
@@ -24,8 +19,15 @@ export const TextArea: React.FC<TextAreaProps> = ({
   className,
   ...textareaProps
 }) => {
+  const errorMessage = typeof error === 'string' ? error : error?.message;
+
   return (
-    <FormFieldWrapper label={label} required={required} error={error} helperText={helperText}>
+    <div className="flex flex-col gap-2">
+      <label className="text-sm font-medium text-gray-700">
+        {label}
+        {required && <span className="text-red-500 ml-1">*</span>}
+      </label>
+
       <textarea
         className={`
           w-full px-4 py-2 border rounded-lg
@@ -38,6 +40,20 @@ export const TextArea: React.FC<TextAreaProps> = ({
         {...textareaProps}
         {...registration}
       />
-    </FormFieldWrapper>
+
+      {errorMessage && (
+        <div className="flex items-center gap-2 text-red-500 text-sm">
+          <AlertCircle className="w-4 h-4" />
+          <span>{errorMessage}</span>
+        </div>
+      )}
+
+      {helperText && !error && (
+        <p className="text-gray-500 text-sm">{helperText}</p>
+      )}
+    </div>
   );
 };
+
+export const TextAreaField = TextArea;
+export default TextArea;

@@ -3,14 +3,23 @@
  * Exporta todos los componentes de form-fields
  */
 
-export { FormFieldWrapper, type FormFieldWrapperProps } from './FormFieldWrapper';
-export { InputText, type InputTextProps } from './InputText';
-export { InputDate, type InputDateProps } from './InputDate';
-export { Select, type SelectProps, type SelectOption } from './Select';
-export { TextArea, type TextAreaProps } from './TextArea';
-export { Checkbox, type CheckboxProps } from './Checkbox';
-export { RadioGroup, type RadioGroupProps, type RadioOption } from './RadioGroup';
-export { ReadOnlyField, type ReadOnlyFieldProps } from './ReadOnlyField';
-export { Button, type ButtonProps } from './Button';
-export { SectionHeader, type SectionHeaderProps } from './SectionHeader';
-export { FormSection, type FormSectionProps } from './FormSection';
+export { Button } from './Button';
+export { Checkbox } from './Checkbox';
+export { FormAlert } from './FormAlert';
+export { FormFieldWrapper } from './FormFieldWrapper';
+export { FormGrid } from './FormGrid';
+export { FormSection } from './FormSection';
+export { InputDate } from './InputDate';
+export { InputText } from './InputText';
+export { RadioGroup } from './RadioGroup';
+export { ReadOnlyField } from './ReadOnlyField';
+export { SectionHeader } from './SectionHeader';
+export { Select } from './Select';
+export { TextArea } from './TextArea';
+
+// Aliases para compatibilidad
+export { InputText as InputField } from './InputText';
+export { Select as SelectField } from './Select';
+export { TextArea as TextAreaField } from './TextArea';
+export { Checkbox as CheckboxField } from './Checkbox';
+export { Button as FormButton } from './Button';
