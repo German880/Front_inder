@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { toast } from "sonner";
+
 import { Navbar } from "./components/Navbar";
 import { Inicio } from "./components/Inicio";
 import { RegistroDeportista } from "./components/RegistroDeportista";
@@ -6,6 +8,7 @@ import { HistoriaClinica } from "./components/HistoriaClinica";
 import { SelectDeportista } from "./components/SelectDeportista";
 import { GestionCitas } from "./components/GestionCitas";
 import { VistaPlaceholder } from "./components/VistaPlaceholder";
+import { deportistasService } from "./services";
 
 type Deportista = {
   id: string;
@@ -15,7 +18,6 @@ type Deportista = {
   tipoDocumento: string;
   edad: number;
   tipoDeporte: string;
-  nivelCompetencia: string;
 };
 
 export default function App() {
@@ -32,12 +34,23 @@ export default function App() {
     setCurrentView("historia");
   };
 
+  const handleRegistroSubmit = async (data: any) => {
+    try {
+      await deportistasService.create(data);
+      toast.success("Deportista registrado correctamente");
+      setCurrentView("historia");
+    } catch (error) {
+      toast.error("Error al registrar deportista");
+      console.error("Error registrando deportista:", error);
+    }
+  };
+
   const renderView = () => {
     switch (currentView) {
       case "inicio":
         return <Inicio onNavigate={setCurrentView} />;
       case "registro":
-        return <RegistroDeportista />;
+        return <RegistroDeportista onSubmit={handleRegistroSubmit} />;
       case "historia":
         return (
           <SelectDeportista

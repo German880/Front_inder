@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Menu, House, ClipboardList, Users, Activity, Settings, X, FileHeart } from "lucide-react";
-import logo from "figma:asset/de8336eabd75e8b9a8007285a47658c227013688.png";
+import logo from "../../assets/logo-inderhuila.png";
 
 type NavbarProps = {
   onNavigate: (view: string) => void;

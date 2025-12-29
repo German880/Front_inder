@@ -95,7 +95,6 @@ type Deportista = {
   tipoDocumento: string;
   edad: number;
   tipoDeporte: string;
-  nivelCompetencia: string;
 };
 
 type HistoriaClinicaProps = {
@@ -350,8 +349,6 @@ export function HistoriaClinica({ deportista, onBack }: HistoriaClinicaProps) {
                 <span>{deportista.edad} años</span>
                 <span>•</span>
                 <span>{deportista.tipoDeporte}</span>
-                <span>•</span>
-                <span>{deportista.nivelCompetencia}</span>
               </div>
             </div>
           </div>
