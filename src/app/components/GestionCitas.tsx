@@ -42,12 +42,6 @@ type Cita = {
   created_at?: string;
 };
 
-type Deportista = {
-  id: string;
-  nombre: string;
-  apellido: string;
-};
-
 type FormData = {
   deportista_id: string;
   fecha: string;
@@ -57,23 +51,8 @@ type FormData = {
   observaciones: string;
 };
 
-const tiposCita = {
-  primera_cita: "Primera Cita",
-  control: "Control",
-  novedad: "Novedad",
-};
-
-const estadosCita = {
-  programada: "Programada",
-  confirmada: "Confirmada",
-  realizada: "Realizada",
-  cancelada: "Cancelada",
-};
-
 export function GestionCitas() {
   const [citas, setCitas] = useState<Cita[]>([]);
-  const [deportistas, setDeportistas] = useState<Deportista[]>([]);
-  const [catalogoItems, setCatalogoItems] = useState<any>({});
   const [modalAbierto, setModalAbierto] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingCitas, setIsLoadingCitas] = useState(true);
@@ -97,7 +76,7 @@ export function GestionCitas() {
       const response = await citasService.getAll(1, 100);
       // Respuesta puede ser un array o un objeto con estructura paginada
       const citasData = Array.isArray(response) ? response : response.items || [];
-      setCitas(citasData || []);
+      setCitas((citasData || []) as Cita[]);
     } catch (error) {
       console.error("Error al cargar citas:", error);
       toast.error("Error al cargar las citas");
@@ -143,7 +122,7 @@ export function GestionCitas() {
 
       const nuevaCita = await citasService.create(datosEnvio);
 
-      setCitas([...citas, nuevaCita]);
+      setCitas([...citas, nuevaCita as Cita]);
       handleCerrarModal();
       toast.success("Cita agendada correctamente");
     } catch (error) {
@@ -278,7 +257,7 @@ export function GestionCitas() {
                 time: "Hora",
                 event: "Evento",
                 noEventsInRange: "No hay citas en este rango",
-                showMore: (total) => `+ Ver más (${total})`,
+                showMore: (total: number) => `+ Ver más (${total})`,
               }}
               culture="es"
               eventPropGetter={eventStyleGetter}
