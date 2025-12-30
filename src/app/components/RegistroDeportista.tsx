@@ -193,13 +193,13 @@ export function RegistroDeportista() {
       
       // Buscar IDs en catálogos
       const tipoDocId = tiposDocumento.find(
-        (c) => c.valor.toLowerCase() === data.tipoDocumento.toLowerCase()
+        (c) => c.nombre.toLowerCase() === data.tipoDocumento.toLowerCase()
       )?.id;
       const sexoId = sexos.find(
-        (c) => c.valor.toLowerCase() === data.genero.toLowerCase()
+        (c) => c.nombre.toLowerCase() === data.genero.toLowerCase()
       )?.id;
       const estadoId = estados.find(
-        (c) => c.valor.toLowerCase() === "activo"
+        (c) => c.nombre.toLowerCase() === "activo"
       )?.id;
       
       if (!tipoDocId || !sexoId || !estadoId) {
