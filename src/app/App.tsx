@@ -11,6 +11,7 @@ import { GestionCitas } from "./components/GestionCitas";
 import { CitasManager } from "./components/CitasManager";
 import { ListadoDeportistas } from "./components/ListadoDeportistas";
 import { DetalleDeportista } from "./components/DetalleDeportista";
+import { Reportes } from "./components/Reportes";
 import { deportistasService, Deportista } from "./services/apiClient";
 
 export default function App() {
@@ -73,6 +74,8 @@ export default function App() {
         );
       case "consultas":
         return <GestionCitas />;
+      case "reportes":
+        return <Reportes />;
       case "configuracion":
         return (
           <div className="p-8">
