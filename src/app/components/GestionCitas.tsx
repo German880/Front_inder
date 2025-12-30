@@ -2,11 +2,12 @@ import { useState, useEffect } from "react";
 import { Calendar, dateFnsLocalizer } from "react-big-calendar";
 import { format, parse, startOfWeek, getDay, isWithinInterval, startOfDay, endOfDay, addDays } from "date-fns";
 import { es } from "date-fns/locale";
-import { Plus, X, Calendar as CalendarIcon, User, Clock, Stethoscope, Trash2 } from "lucide-react";
+import { Plus, X, Calendar as CalendarIcon, User, Clock, Stethoscope, Trash2, Badge } from "lucide-react";
 import { toast } from "sonner";
 import "react-big-calendar/lib/css/react-big-calendar.css";
-import "../styles/calendar.css";
+import "../../styles/calendar.css";
 import { citasService } from "../services/apiClient";
+import { useCatalogos } from "../hooks/useCatalogos";
 
 // Configurar react-big-calendar con date-fns
 const locales = {
@@ -51,11 +52,23 @@ type FormData = {
   observaciones: string;
 };
 
+type Deportista = {
+  id: string;
+  nombres: string;
+  apellidos: string;
+  numero_documento: string;
+};
+
 export function GestionCitas() {
+  const { tiposCita, estadosCita, loading: loadingCatalogos } = useCatalogos();
   const [citas, setCitas] = useState<Cita[]>([]);
   const [modalAbierto, setModalAbierto] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingCitas, setIsLoadingCitas] = useState(true);
+  const [isLoadingDeportistas, setIsLoadingDeportistas] = useState(false);
+  const [deportistasBuscados, setDeportistasBuscados] = useState<Deportista[]>([]);
+  const [nombreBusqueda, setNombreBusqueda] = useState("");
+  const [deportistaSeleccionado, setDeportistaSeleccionado] = useState<Deportista | null>(null);
   const [formData, setFormData] = useState<FormData>({
     deportista_id: "",
     fecha: "",
@@ -67,16 +80,48 @@ export function GestionCitas() {
 
   // Cargar citas al montar el componente
   useEffect(() => {
+    console.log("🔧 GestionCitas mounted, inicializando listener...");
     cargarCitas();
+    
+    // Método 1: Escuchar evento custom
+    const handleCitasActualizadas = (event: Event) => {
+      console.log("📅 ✅ Evento 'citasActualizadas' recibido!", event);
+      console.log("📅 Citas actualizadas, recargando lista...");
+      cargarCitas();
+    };
+    
+    // Método 2: Escuchar cambios en localStorage
+    const handleStorageChange = (e: StorageEvent) => {
+      console.log("💾 Storage event recibido:", e.key, "=", e.newValue);
+      if (e.key === 'citasActualizadas_timestamp') {
+        console.log("💾 ✅ Cambio detectado en citasActualizadas_timestamp, recargando citas...");
+        cargarCitas();
+      }
+    };
+    
+    console.log("🔧 Agregando listeners...");
+    window.addEventListener('citasActualizadas', handleCitasActualizadas as EventListener);
+    window.addEventListener('storage', handleStorageChange);
+    
+    return () => {
+      console.log("🔧 Removiendo listeners...");
+      window.removeEventListener('citasActualizadas', handleCitasActualizadas as EventListener);
+      window.removeEventListener('storage', handleStorageChange);
+    };
   }, []);
 
   const cargarCitas = async () => {
     try {
+      console.log("📅 Iniciando cargarCitas()...");
       setIsLoadingCitas(true);
       const response = await citasService.getAll(1, 100);
+      console.log("📅 Respuesta de citasService.getAll():", response);
       // Respuesta puede ser un array o un objeto con estructura paginada
       const citasData = Array.isArray(response) ? response : response.items || [];
+      console.log("📅 Citas procesadas:", citasData);
+      console.log("📅 Primera cita con estado:", citasData[0]?.estado_cita);
       setCitas((citasData || []) as Cita[]);
+      console.log("📅 ✅ setCitas llamado, estado actualizado");
     } catch (error) {
       console.error("Error al cargar citas:", error);
       toast.error("Error al cargar las citas");
@@ -99,6 +144,46 @@ export function GestionCitas() {
       estado_cita_id: "",
       observaciones: "",
     });
+    setNombreBusqueda("");
+    setDeportistaSeleccionado(null);
+    setDeportistasBuscados([]);
+  };
+
+  const handleBuscarDeportista = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const valor = e.target.value;
+    setNombreBusqueda(valor);
+
+    if (valor.trim().length < 2) {
+      setDeportistasBuscados([]);
+      setFormData({ ...formData, deportista_id: "" });
+      setDeportistaSeleccionado(null);
+      return;
+    }
+
+    try {
+      setIsLoadingDeportistas(true);
+      const response = await fetch(
+        `http://localhost:8000/api/v1/deportistas/search?q=${encodeURIComponent(valor)}`
+      );
+      if (response.ok) {
+        const datos = await response.json();
+        setDeportistasBuscados(datos);
+      } else {
+        setDeportistasBuscados([]);
+      }
+    } catch (error) {
+      console.error("Error al buscar deportista:", error);
+      setDeportistasBuscados([]);
+    } finally {
+      setIsLoadingDeportistas(false);
+    }
+  };
+
+  const handleSeleccionarDeportista = (deportista: Deportista) => {
+    setDeportistaSeleccionado(deportista);
+    setFormData({ ...formData, deportista_id: deportista.id });
+    setDeportistasBuscados([]);
+    setNombreBusqueda("");
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -111,12 +196,21 @@ export function GestionCitas() {
 
     setIsLoading(true);
     try {
+      // Mapear los nombres de los tipos de cita a sus IDs
+      const tipoCitaSeleccionada = tiposCita.find((t) => t.nombre === formData.tipo_cita_id);
+      const estadoCitaSeleccionado = estadosCita.find((e) => e.nombre === formData.estado_cita_id);
+
+      if (!tipoCitaSeleccionada || !estadoCitaSeleccionado) {
+        toast.error("Error: Tipo de cita o estado no válido");
+        return;
+      }
+
       const datosEnvio = {
         deportista_id: formData.deportista_id,
         fecha: formData.fecha,
         hora: formData.hora,
-        tipo_cita_id: formData.tipo_cita_id || "control",
-        estado_cita_id: formData.estado_cita_id || "programada",
+        tipo_cita_id: tipoCitaSeleccionada.id,
+        estado_cita_id: estadoCitaSeleccionado.id,
         observaciones: formData.observaciones,
       };
 
@@ -206,6 +300,17 @@ export function GestionCitas() {
     };
   };
 
+  const getEstadoColor = (estado?: string) => {
+    if (!estado) return 'bg-gray-100 text-gray-700';
+    const lower = estado.toLowerCase();
+    if (lower === 'programada') return 'bg-yellow-100 text-yellow-700';
+    if (lower === 'confirmada') return 'bg-green-100 text-green-700';
+    if (lower === 'cancelada') return 'bg-red-100 text-red-700';
+    if (lower === 'realizada') return 'bg-blue-100 text-blue-700';
+    if (lower === 'no presentó') return 'bg-orange-100 text-orange-700';
+    return 'bg-gray-100 text-gray-700';
+  };
+
   if (isLoadingCitas) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -268,6 +373,9 @@ export function GestionCitas() {
         {/* Lista de citas de la semana */}
         <div className="bg-white rounded-lg shadow-md p-6">
           <h2 className="mb-4 text-lg font-semibold text-gray-800">Citas de esta semana</h2>
+          
+          {console.log("🎨 Renderizando lista de citas. Total:", citas.length, "En semana:", citasSemanaActual.length)}
+          {console.log("📋 Primera cita en semana:", citasSemanaActual[0]?.estado_cita?.nombre)}
 
           {citasSemanaActual.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
@@ -326,6 +434,18 @@ export function GestionCitas() {
                             <span>{cita.tipo_cita.nombre}</span>
                           </div>
                         )}
+                        {cita.estado_cita?.nombre && (
+                          <div className="flex items-center gap-2">
+                            <Badge className="w-4 h-4 flex-shrink-0" />
+                            <span
+                              className={`text-xs font-semibold px-2 py-1 rounded-full ${getEstadoColor(
+                                cita.estado_cita.nombre
+                              )}`}
+                            >
+                              {cita.estado_cita.nombre}
+                            </span>
+                          </div>
+                        )}
                       </div>
                       {cita.observaciones && (
                         <p className="text-xs text-gray-500 mt-2 italic">
@@ -355,22 +475,79 @@ export function GestionCitas() {
             </div>
 
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
-              {/* Seleccionar deportista */}
+              {/* Seleccionar deportista por nombre */}
               <div>
                 <label htmlFor="deportista" className="block mb-2 text-gray-700 font-medium">
                   Deportista <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="text"
-                  id="deportista"
-                  value={formData.deportista_id}
-                  onChange={(e) =>
-                    setFormData({ ...formData, deportista_id: e.target.value })
-                  }
-                  placeholder="ID del deportista"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
+                
+                {!deportistaSeleccionado ? (
+                  <div className="relative">
+                    <input
+                      type="text"
+                      id="deportista"
+                      value={nombreBusqueda}
+                      onChange={handleBuscarDeportista}
+                      placeholder="Escribe el nombre del deportista..."
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required={!formData.deportista_id}
+                    />
+                    
+                    {/* Dropdown de resultados */}
+                    {nombreBusqueda.length >= 2 && (
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-50">
+                        {isLoadingDeportistas ? (
+                          <div className="p-3 text-center text-gray-500">Buscando...</div>
+                        ) : deportistasBuscados.length > 0 ? (
+                          <ul className="max-h-64 overflow-y-auto">
+                            {deportistasBuscados.map((deportista) => (
+                              <li key={deportista.id}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleSeleccionarDeportista(deportista)}
+                                  className="w-full text-left px-4 py-2 hover:bg-blue-50 border-b border-gray-100 last:border-b-0 transition-colors"
+                                >
+                                  <div className="font-medium text-gray-900">
+                                    {deportista.nombres} {deportista.apellidos}
+                                  </div>
+                                  <div className="text-xs text-gray-600">
+                                    Doc: {deportista.numero_documento}
+                                  </div>
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <div className="p-3 text-center text-gray-500">
+                            No se encontraron deportistas
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                    <div>
+                      <div className="font-medium text-gray-900">
+                        {deportistaSeleccionado.nombres} {deportistaSeleccionado.apellidos}
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        Doc: {deportistaSeleccionado.numero_documento}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDeportistaSeleccionado(null);
+                        setFormData({ ...formData, deportista_id: "" });
+                        setNombreBusqueda("");
+                      }}
+                      className="ml-auto p-1 hover:bg-blue-200 rounded transition-colors"
+                    >
+                      <X className="w-4 h-4 text-gray-600" />
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Tipo de cita */}
@@ -386,11 +563,14 @@ export function GestionCitas() {
                   }
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   required
+                  disabled={loadingCatalogos}
                 >
                   <option value="">Seleccionar tipo de cita...</option>
-                  <option value="primera_cita">Primera Cita</option>
-                  <option value="control">Control</option>
-                  <option value="novedad">Novedad</option>
+                  {tiposCita.map((tipo) => (
+                    <option key={tipo.id} value={tipo.nombre}>
+                      {tipo.nombre}
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -436,12 +616,14 @@ export function GestionCitas() {
                     setFormData({ ...formData, estado_cita_id: e.target.value })
                   }
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  disabled={loadingCatalogos}
                 >
                   <option value="">Seleccionar estado...</option>
-                  <option value="programada">Programada</option>
-                  <option value="confirmada">Confirmada</option>
-                  <option value="realizada">Realizada</option>
-                  <option value="cancelada">Cancelada</option>
+                  {estadosCita.map((estado) => (
+                    <option key={estado.id} value={estado.nombre}>
+                      {estado.nombre}
+                    </option>
+                  ))}
                 </select>
               </div>
 

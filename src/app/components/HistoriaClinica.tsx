@@ -7,10 +7,10 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { toast } from 'sonner';
 import { ArrowLeft, ChevronRight, ChevronLeft } from 'lucide-react';
-import { Deportista, historiaClinicaService } from '../services/apiClient';
+import { Deportista, historiaClinicaService, documentosService } from '../services/apiClient';
 import { ProgressIndicator } from './historia/ProgressIndicator';
 import { Evaluacion } from './historia/Evaluacion';
 import { AntecedentesMedicos } from './historia/AntecedentesMedicos';
@@ -79,9 +79,9 @@ export type HistoriaClinicaData = {
   ayudasDiagnosticas: Array<{ categoria: string; nombrePrueba: string; codigoCUPS: string; resultado: string; archivosAdjuntos: File[] }>;
   
   // Paso 6: Diagnóstico
-  analisisObjetivo: string;
+  analisisObjetivoDiagnostico: string;
   impresionDiagnostica: string;
-  diagnosticosClinicos: Array<{ codigoCIE11: string; nombreEnfermedad: string; observaciones: string }>;
+  diagnosticos: Array<{ codigo: string; nombre: string; observaciones: string }>;
   
   // Paso 7: Plan de Tratamiento
   indicacionesMedicas: string;
@@ -124,14 +124,14 @@ export const HistoriaClinica: React.FC<HistoriaClinicaProps> = ({
     medicacionActual: "",
     vacunas: [],
     revisionSistemas: {
-      cardiovascular: { estado: "", observaciones: "" },
-      respiratorio: { estado: "", observaciones: "" },
-      digestivo: { estado: "", observaciones: "" },
-      neurologico: { estado: "", observaciones: "" },
-      musculoesqueletico: { estado: "", observaciones: "" },
-      genitourinario: { estado: "", observaciones: "" },
-      endocrino: { estado: "", observaciones: "" },
-      pielFaneras: { estado: "", observaciones: "" },
+      cardiovascular: { estado: "normal", observaciones: "" },
+      respiratorio: { estado: "normal", observaciones: "" },
+      digestivo: { estado: "normal", observaciones: "" },
+      neurologico: { estado: "normal", observaciones: "" },
+      musculoesqueletico: { estado: "normal", observaciones: "" },
+      genitourinario: { estado: "normal", observaciones: "" },
+      endocrino: { estado: "normal", observaciones: "" },
+      pielFaneras: { estado: "normal", observaciones: "" },
     },
     estatura: "",
     peso: "",
@@ -141,19 +141,19 @@ export const HistoriaClinica: React.FC<HistoriaClinicaProps> = ({
     temperatura: "36.5",
     saturacionOxigeno: "98",
     exploracionSistemas: {
-      cardiovascular: { estado: "", observaciones: "" },
-      respiratorio: { estado: "", observaciones: "" },
-      digestivo: { estado: "", observaciones: "" },
-      neurologico: { estado: "", observaciones: "" },
-      musculoesqueletico: { estado: "", observaciones: "" },
-      genitourinario: { estado: "", observaciones: "" },
-      endocrino: { estado: "", observaciones: "" },
-      pielFaneras: { estado: "", observaciones: "" },
+      cardiovascular: { estado: "normal", observaciones: "" },
+      respiratorio: { estado: "normal", observaciones: "" },
+      digestivo: { estado: "normal", observaciones: "" },
+      neurologico: { estado: "normal", observaciones: "" },
+      musculoesqueletico: { estado: "normal", observaciones: "" },
+      genitourinario: { estado: "normal", observaciones: "" },
+      endocrino: { estado: "normal", observaciones: "" },
+      pielFaneras: { estado: "normal", observaciones: "" },
     },
     ayudasDiagnosticas: [],
-    analisisObjetivo: "",
+    analisisObjetivoDiagnostico: "",
     impresionDiagnostica: "",
-    diagnosticosClinicos: [],
+    diagnosticos: [],
     indicacionesMedicas: "",
     recomendacionesEntrenamiento: "",
     planSeguimiento: "",
@@ -186,6 +186,16 @@ export const HistoriaClinica: React.FC<HistoriaClinicaProps> = ({
     }
   };
 
+  const descargarDocumentoPDF = async (historiaId: string) => {
+    try {
+      await documentosService.descargarHistoriaClinicaPdf(historiaId);
+      toast.success("Documento descargado correctamente");
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : "Error desconocido";
+      toast.error(`Error al descargar documento: ${errorMsg}`);
+    }
+  };
+
   const handleSubmit = async () => {
     if (!confirm("¿Está seguro que desea guardar la historia clínica?")) {
       return;
@@ -193,14 +203,60 @@ export const HistoriaClinica: React.FC<HistoriaClinicaProps> = ({
 
     setIsSubmitting(true);
     try {
-      // Enviar datos al backend
-      const response = await historiaClinicaService.crearCompleta({
+      // Convertir File objects a información serializable
+      const datosParaEnvio = {
+        ...formData,
+        ayudasDiagnosticas: formData.ayudasDiagnosticas.map(prueba => ({
+          ...prueba,
+          archivosAdjuntos: (prueba.archivosAdjuntos || []).map(file => ({
+            nombre: file.name,
+            tamaño: file.size,
+            tipo: file.type,
+          }))
+        }))
+      };
+
+      const datosEnvio = {
         deportista_id: deportista.id,
-        ...formData
-      });
+        ...datosParaEnvio
+      };
       
+      // Log de debugging
+      console.log("📝 Datos a enviar a /historias_clinicas/completa:", JSON.stringify(datosEnvio, null, 2));
+      
+      // Enviar datos al backend
+      const response = await historiaClinicaService.crearCompleta(datosEnvio);
+      
+      console.log("✅ Historia clínica guardada, respuesta:", response);
       toast.success("Historia clínica guardada correctamente");
-      onSuccess?.(response.id);
+      
+      // Método 1: Emitir evento INMEDIATAMENTE para refrescar las citas
+      console.log("🚀 Emitiendo evento 'citasActualizadas'...");
+      window.dispatchEvent(new CustomEvent('citasActualizadas', { 
+        detail: { deportista_id: deportista.id, historia_id: response.id } 
+      }));
+      console.log("🚀 ✅ Evento emitido");
+      
+      // Método 2: Guardar en localStorage como backup (mejor comunicación entre ventanas/contextos)
+      const timestamp = new Date().toISOString();
+      console.log("💾 Guardando en localStorage: citasActualizadas_timestamp =", timestamp);
+      localStorage.setItem('citasActualizadas_timestamp', timestamp);
+      localStorage.setItem('citasActualizadas_deportista', deportista.id);
+      
+      // Ofrecer descargar PDF inmediatamente después de guardar
+      setTimeout(() => {
+        if (confirm("¿Deseas descargar el documento médico en PDF?")) {
+          descargarDocumentoPDF(response.id);
+        }
+        
+        // Llamar callbacks y cerrar la vista
+        onSuccess?.(response.id);
+        
+        // Esperar a que se descargue el PDF (si es que lo descargó) y luego cerrar
+        setTimeout(() => {
+          onBack?.();
+        }, 500);
+      }, 500);
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : "Error desconocido";
       toast.error(`Error al guardar la historia clínica: ${errorMsg}`);

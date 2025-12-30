@@ -137,6 +137,28 @@ const ETNIAS = [
   "Otro",
   "Prefiero no decirlo"
 ];
+
+// Mapeo entre valores del formulario y nombres reales en catálogos
+const MAPEO_CATALOGOS = {
+  tipoDocumento: {
+    cedula_ciudadania: "Cédula de ciudadanía",
+    cedula_extranjeria: "Cédula de extranjería",
+    pasaporte: "Pasaporte",
+    nit: "NIT",
+    tarjeta_identidad: "Tarjeta de identidad",
+    pep: "Permiso Especial de Permanencia",
+  },
+  genero: {
+    masculino: "Masculino",
+    femenino: "Femenino",
+    otro: "Otro",
+  },
+  estado: {
+    activo: "Activo",
+    inactivo: "Inactivo",
+  },
+};
+
 export function RegistroDeportista() {
   const [edad, setEdad] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -186,24 +208,34 @@ export function RegistroDeportista() {
 
   const onSubmit = async (data: FormData) => {
     console.log("Datos del formulario:", data);
-    console.log("Edad calculada:", edad);
     
     try {
       setIsLoading(true);
       
-      // Buscar IDs en catálogos
+      // Usar mapeo para obtener nombres reales
+      const nombreTipoDoc = MAPEO_CATALOGOS.tipoDocumento[data.tipoDocumento as keyof typeof MAPEO_CATALOGOS.tipoDocumento];
+      const nombreGenero = MAPEO_CATALOGOS.genero[data.genero as keyof typeof MAPEO_CATALOGOS.genero];
+      const nombreEstado = MAPEO_CATALOGOS.estado["activo" as keyof typeof MAPEO_CATALOGOS.estado];
+      
+      console.log("Nombres mapeados:", { nombreTipoDoc, nombreGenero, nombreEstado });
+      
+      // Buscar IDs en catálogos usando nombres reales
       const tipoDocId = tiposDocumento.find(
-        (c) => c.nombre.toLowerCase() === data.tipoDocumento.toLowerCase()
-      )?.id;
-      const sexoId = sexos.find(
-        (c) => c.nombre.toLowerCase() === data.genero.toLowerCase()
-      )?.id;
-      const estadoId = estados.find(
-        (c) => c.nombre.toLowerCase() === "activo"
+        (c) => c.nombre === nombreTipoDoc
       )?.id;
       
+      const sexoId = sexos.find(
+        (c) => c.nombre === nombreGenero
+      )?.id;
+      
+      const estadoId = estados.find(
+        (c) => c.nombre === nombreEstado
+      )?.id;
+      
+      console.log("IDs encontrados:", { tipoDocId, sexoId, estadoId });
+      
       if (!tipoDocId || !sexoId || !estadoId) {
-        toast.error("Error: No se encontraron los catálogos necesarios");
+        toast.error(`Error: No se encontraron los catálogos necesarios. tipoDoc: ${!!tipoDocId}, sexo: ${!!sexoId}, estado: ${!!estadoId}`);
         setIsLoading(false);
         return;
       }
@@ -225,6 +257,7 @@ export function RegistroDeportista() {
         email: data.correoElectronico,
         direccion: data.direccion,
         estado_id: estadoId,
+        tipo_deporte: data.disciplina,
       };
       
       console.log("Datos a enviar al servidor:", datosAEnviar);

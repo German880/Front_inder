@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { Search, ArrowLeft, User, Calendar, FileText } from 'lucide-react';
 import { deportistasService, Deportista } from '../../app/services/apiClient';
+import { DeportistasConCitasHoy } from './DeportistasConCitasHoy';
 
 // ============================================================================
 // TIPOS
@@ -127,6 +128,9 @@ export const SelectDeportista: React.FC<SelectDeportistaProps> = ({
             </div>
           </div>
         </div>
+
+        {/* Deportistas con citas hoy */}
+        <DeportistasConCitasHoy onSelectDeportista={onSelect} />
 
         {/* Buscador */}
         <div className="mb-6">

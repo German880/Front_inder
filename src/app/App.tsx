@@ -10,6 +10,8 @@ import { SelectDeportista } from "./components/SelectDeportista";
 import { GestionCitas } from "./components/GestionCitas";
 import { CitasManager } from "./components/CitasManager";
 import { ListadoDeportistas } from "./components/ListadoDeportistas";
+import { ListadoHistoriaClinica } from "./components/ListadoHistoriaClinica";
+import { VistaHistoriaClinica } from "./components/VistaHistoriaClinica";
 import { DetalleDeportista } from "./components/DetalleDeportista";
 import { Reportes } from "./components/Reportes";
 import { ArchivosGestion } from "./components/ArchivosGestion";
@@ -66,14 +68,15 @@ export default function App() {
           />
         );
       case "deportistas":
-        return <ListadoDeportistas />;
+        return <ListadoDeportistas onNavigate={setCurrentView} />;
+      case "historias-clinicas":
+        return <ListadoHistoriaClinica onNavigate={setCurrentView} />;
       case "detalles-deportista":
         return selectedDeportistaId ? (
           <DetalleDeportista deportistaId={selectedDeportistaId} />
         ) : (
           <ListadoDeportistas />
-        );
-      case "consultas":
+        );      case "consultas":
         return <GestionCitas />;
       case "reportes":
         return <Reportes />;
@@ -85,9 +88,13 @@ export default function App() {
             <h1 className="text-2xl font-bold">Configuración</h1>
             <p className="text-gray-600">Configura los parámetros del sistema y gestiona usuarios.</p>
           </div>
-        );
-      default:
-        return <Inicio onNavigate={setCurrentView} />;
+        );      default:
+        // Manejo de vistas dinámicas como historia-vista-{id}
+        if (currentView.startsWith("historia-vista-")) {
+          const historiaId = currentView.replace("historia-vista-", "");
+          return <VistaHistoriaClinica historiaId={historiaId} onNavigate={setCurrentView} />;
+        }
+        return <Inicio onNavigate={setCurrentView} />
     }
   };
 

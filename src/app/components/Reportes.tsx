@@ -1,10 +1,6 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import {
-  BarChart,
-  Bar,
-  LineChart,
-  Line,
   PieChart,
   Pie,
   Cell,
@@ -12,19 +8,15 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
   AreaChart,
   Area,
 } from 'recharts';
 import {
   Download,
-  Filter,
-  TrendingUp,
   Users,
   Calendar,
   CheckCircle2,
-  AlertCircle,
 } from 'lucide-react';
 import { deportistasService, citasService } from '../services/apiClient';
 
@@ -55,8 +47,6 @@ export function Reportes() {
     citasCanceladas: 0,
   });
   const [isLoading, setIsLoading] = useState(true);
-  const [fechaInicio, setFechaInicio] = useState('');
-  const [fechaFin, setFechaFin] = useState('');
   const [citasPorMes, setCitasPorMes] = useState<ChartData[]>([]);
   const [deportistasPorDeporte, setDeportistasPorDeporte] = useState<ChartData[]>([]);
 

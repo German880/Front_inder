@@ -346,8 +346,29 @@ export function CitasManager({ deportista, onSuccess }: CitasManagerProps) {
                           {formatFecha(cita.fecha)} a las {formatHora(cita.hora)}
                         </p>
                         <p className="text-sm text-gray-600">
-                          {cita.tipo_cita?.nombre || 'Cita'}
+                          {cita.tipo_cita?.nombre || 'Cita'} • 
+                          <span className={`ml-1 font-medium ${
+                            cita.estado_cita?.nombre?.toLowerCase() === 'atendida' 
+                              ? 'text-green-600' 
+                              : 'text-yellow-600'
+                          }`}>
+                            {cita.estado_cita?.nombre || 'Pendiente'}
+                          </span>
                         </p>
+                      </div>
+                    </div>
+                    <span
+                      className={`px-3 py-1 rounded-full text-sm font-semibold ${getEstadoColor(
+                        cita.estado_cita?.nombre
+                      )}`}
+                    >
+                      {cita.estado_cita?.nombre || 'Pendiente'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
                       </div>
                     </div>
                     <span

@@ -7,8 +7,6 @@ import {
   File,
   FileText,
   Image,
-  AlertCircle,
-  CheckCircle2,
   Folder,
   Search,
   Eye,
@@ -44,7 +42,6 @@ const TAMAÑO_MAX = 10 * 1024 * 1024; // 10 MB
 export function ArchivosGestion({ deportistaId }: ArchivosGestionProps) {
   const [archivos, setArchivos] = useState<Archivo[]>([]);
   const [isDragging, setIsDragging] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filtroTipo, setFiltroTipo] = useState('todos');
   const [archivoSeleccionado, setArchivoSeleccionado] = useState<Archivo | null>(null);
@@ -123,7 +120,6 @@ export function ArchivosGestion({ deportistaId }: ArchivosGestionProps) {
         continue;
       }
 
-      setIsUploading(true);
       try {
         // Aquí iría la llamada al backend
         // const response = await archivosService.subir(file, deportistaId);
@@ -143,8 +139,6 @@ export function ArchivosGestion({ deportistaId }: ArchivosGestionProps) {
       } catch (error) {
         console.error('Error subiendo archivo:', error);
         toast.error(`Error al subir ${file.name}`);
-      } finally {
-        setIsUploading(false);
       }
     }
   };

@@ -95,6 +95,8 @@ export interface Deportista {
   tipoDeporte?: string;
 }
 
+export type DeportistaCreate = Omit<Deportista, 'id' | 'created_at' | 'updated_at' | 'foto' | 'tipoDocumento' | 'numeroDocumento' | 'tipoDeporte' | 'edad'>;
+
 export interface Formulario {
   id?: string; // UUID
   nombre: string;
@@ -382,7 +384,7 @@ export const deportistasService = {
    *   estado_id: "uuid-activo"        // FK → catalogo_items
    * }
    */
-  async create(data: Deportista) {
+  async create(data: DeportistaCreate) {
     const response = await api.post<Deportista>('/deportistas', data);
     return response.data;
   },
@@ -655,6 +657,17 @@ export const formularioRespuestasService = {
 
 export const citasService = {
   /**
+   * Obtener deportistas que tienen citas agendadas para hoy
+   * GET /api/v1/citas/deportistas-con-citas-hoy
+   */
+  async getDeportistasConCitasHoy() {
+    const response = await api.get<Deportista[]>(
+      '/citas/deportistas-con-citas-hoy'
+    );
+    return response.data;
+  },
+
+  /**
    * Obtener todas las citas
    * GET /api/v1/citas
    */
@@ -875,6 +888,42 @@ export async function healthCheck(): Promise<boolean> {
 }
 
 // ============================================================================
+// DOCUMENTOS SERVICE
+// ============================================================================
+
+export const documentosService = {
+  /**
+   * Descargar historia clínica en PDF
+   * GET /api/v1/documentos/{historia_id}/historia-clinica-pdf
+   */
+  async descargarHistoriaClinicaPdf(historiaId: string) {
+    try {
+      const response = await api.get(
+        `/documentos/${historiaId}/historia-clinica-pdf`,
+        {
+          responseType: 'blob'
+        }
+      );
+      
+      // Crear un blob URL y descargar
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `historia_clinica_${historiaId}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode?.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      return true;
+    } catch (error) {
+      console.error('Error descargando PDF:', error);
+      throw error;
+    }
+  },
+};
+
+// ============================================================================
 // EXPORT DEFAULT
 // ============================================================================
 
@@ -889,5 +938,6 @@ export default {
   archivosService,
   formulariosService,
   plantillasService,
+  documentosService,
   healthCheck,
 };

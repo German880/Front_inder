@@ -9,6 +9,7 @@ export {
   archivosService,
   formulariosService,
   plantillasService,
+  documentosService,
   healthCheck,
   // Tipos
   type ApiResponse,

@@ -42,6 +42,7 @@ export default function Navbar({ onNavigate, currentView }: NavbarProps) {
     { label: 'Dashboard', view: 'inicio', icon: Home },
     { label: 'Deportistas', view: 'deportistas', icon: Users },
     { label: 'Historia Clínica', view: 'historia', icon: FileText },
+    { label: 'Historias Guardadas', view: 'historias-clinicas', icon: FileText },
     { label: 'Citas', view: 'consultas', icon: Calendar },
     { label: 'Archivos', view: 'archivos', icon: Activity },
     { label: 'Reportes', view: 'reportes', icon: BarChart3 },

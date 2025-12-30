@@ -1,5 +1,5 @@
 import { HistoriaClinicaData } from "../HistoriaClinica";
-import { ChevronRight, X, ClipboardCheck } from "lucide-react";
+import { ChevronRight, X } from "lucide-react";
 
 type Props = {
   data: HistoriaClinicaData;
@@ -9,16 +9,8 @@ type Props = {
 };
 
 export function Evaluacion({ data, updateData, onNext, onCancel }: Props) {
-  const handleTipoCitaChange = (tipo: string) => {
-    updateData({ tipoCita: tipo });
-  };
-
   const handleNext = () => {
     // Validar que los campos obligatorios estén llenos
-    if (!data.tipoCita) {
-      alert("Por favor seleccione el tipo de cita");
-      return;
-    }
     if (!data.motivoConsulta || data.motivoConsulta.trim() === "") {
       alert("Por favor ingrese el motivo de consulta");
       return;
@@ -32,38 +24,6 @@ export function Evaluacion({ data, updateData, onNext, onCancel }: Props) {
 
   return (
     <div className="space-y-6">
-      {/* Tipo de cita */}
-      <div className="bg-gradient-to-r from-[#C84F3B]/10 to-[#C84F3B]/5 p-6 rounded-lg border-l-4 border-[#C84F3B]">
-        <div className="flex items-center gap-2 mb-4">
-          <ClipboardCheck className="w-5 h-5 text-[#C84F3B]" />
-          <label className="font-semibold text-gray-800">
-            Tipo de cita <span className="text-red-500">*</span>
-          </label>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {["Primera cita", "Control", "Novedad"].map((tipo) => (
-            <label
-              key={tipo}
-              className={`flex items-center justify-center gap-3 p-4 rounded-lg border-2 cursor-pointer transition-all ${
-                data.tipoCita === tipo
-                  ? "bg-[#C84F3B] border-[#C84F3B] text-white shadow-md"
-                  : "bg-white border-gray-300 text-gray-700 hover:border-[#C84F3B] hover:bg-[#C84F3B]/5"
-              }`}
-            >
-              <input
-                type="radio"
-                name="tipoCita"
-                value={tipo}
-                checked={data.tipoCita === tipo}
-                onChange={(e) => handleTipoCitaChange(e.target.value)}
-                className="sr-only"
-              />
-              <span className="font-medium">{tipo}</span>
-            </label>
-          ))}
-        </div>
-      </div>
-
       {/* Motivo de consulta */}
       <div>
         <label className="block mb-2 font-medium text-gray-800">
