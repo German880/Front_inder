@@ -140,7 +140,7 @@ const ETNIAS = [
 export function RegistroDeportista() {
   const [edad, setEdad] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const { catalogos } = useCatalogos();
+  const { tiposDocumento, sexos, estados } = useCatalogos();
 
   const {
     register,
@@ -192,13 +192,13 @@ export function RegistroDeportista() {
       setIsLoading(true);
       
       // Buscar IDs en catálogos
-      const tipoDocId = catalogos.tipoDocumento?.find(
+      const tipoDocId = tiposDocumento.find(
         (c) => c.valor.toLowerCase() === data.tipoDocumento.toLowerCase()
       )?.id;
-      const sexoId = catalogos.sexo?.find(
+      const sexoId = sexos.find(
         (c) => c.valor.toLowerCase() === data.genero.toLowerCase()
       )?.id;
-      const estadoId = catalogos.estadoDeportista?.find(
+      const estadoId = estados.find(
         (c) => c.valor.toLowerCase() === "activo"
       )?.id;
       
