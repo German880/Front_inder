@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
-import { User, Phone, Mail, MapPin, Trophy, Globe } from "lucide-react";
+import { User, Phone, Trophy } from "lucide-react";
 import { toast } from "sonner";
+import { deportistasService } from "../services/apiClient";
+import { useCatalogos } from "../hooks/useCatalogos";
 
 // ============================================================================
 // TIPOS
@@ -137,6 +139,8 @@ const ETNIAS = [
 ];
 export function RegistroDeportista() {
   const [edad, setEdad] = useState<number | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const { catalogos } = useCatalogos();
 
   const {
     register,
@@ -180,11 +184,65 @@ export function RegistroDeportista() {
     }
   }, [fechaNacimiento]);
 
-  const onSubmit = (data: FormData) => {
+  const onSubmit = async (data: FormData) => {
     console.log("Datos del formulario:", data);
     console.log("Edad calculada:", edad);
-    toast.success("Datos guardados correctamente");
-    // Aquí se enviarían los datos al backend
+    
+    try {
+      setIsLoading(true);
+      
+      // Buscar IDs en catálogos
+      const tipoDocId = catalogos.tipoDocumento?.find(
+        (c) => c.valor.toLowerCase() === data.tipoDocumento.toLowerCase()
+      )?.id;
+      const sexoId = catalogos.sexo?.find(
+        (c) => c.valor.toLowerCase() === data.genero.toLowerCase()
+      )?.id;
+      const estadoId = catalogos.estadoDeportista?.find(
+        (c) => c.valor.toLowerCase() === "activo"
+      )?.id;
+      
+      if (!tipoDocId || !sexoId || !estadoId) {
+        toast.error("Error: No se encontraron los catálogos necesarios");
+        setIsLoading(false);
+        return;
+      }
+      
+      // Separar nombre completo en nombres y apellidos
+      const partes = data.nombreCompleto.trim().split(" ");
+      const nombres = partes.slice(0, -1).join(" ") || partes[0];
+      const apellidos = partes[partes.length - 1] || "";
+      
+      // Preparar datos para el backend
+      const datosAEnviar = {
+        tipo_documento_id: tipoDocId,
+        numero_documento: data.numeroDocumento,
+        nombres: nombres,
+        apellidos: apellidos,
+        fecha_nacimiento: data.fechaNacimiento,
+        sexo_id: sexoId,
+        telefono: data.telefono,
+        email: data.correoElectronico,
+        direccion: data.direccion,
+        estado_id: estadoId,
+      };
+      
+      console.log("Datos a enviar al servidor:", datosAEnviar);
+      
+      // Enviar al backend
+      const response = await deportistasService.create(datosAEnviar);
+      console.log("Respuesta del servidor:", response);
+      
+      toast.success("Deportista registrado correctamente");
+      reset();
+      setEdad(null);
+    } catch (error: any) {
+      console.error("Error al registrar deportista:", error);
+      const mensajeError = error.response?.data?.detail || error.message || "Error desconocido";
+      toast.error(`Error al registrar: ${mensajeError}`);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleCancel = () => {
@@ -603,14 +661,16 @@ export function RegistroDeportista() {
           <div className="flex flex-col sm:flex-row gap-4 pt-6 border-t border-gray-200">
             <button
               type="submit"
-              className="flex-1 bg-blue-600 text-white py-3 px-6 rounded-md hover:bg-blue-700 transition-colors"
+              disabled={isLoading}
+              className="flex-1 bg-blue-600 text-white py-3 px-6 rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Guardar y continuar
+              {isLoading ? "Guardando..." : "Guardar y continuar"}
             </button>
             <button
               type="button"
               onClick={handleCancel}
-              className="flex-1 bg-gray-300 text-gray-700 py-3 px-6 rounded-md hover:bg-gray-400 transition-colors"
+              disabled={isLoading}
+              className="flex-1 bg-gray-300 text-gray-700 py-3 px-6 rounded-md hover:bg-gray-400 transition-colors disabled:opacity-50"
             >
               Cancelar
             </button>
