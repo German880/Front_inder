@@ -7,7 +7,6 @@ type Props = {
   updateData: (data: Partial<HistoriaClinicaData>) => void;
   onNext: () => void;
   onPrevious: () => void;
-  onCancel?: () => void;
 };
 
 type AlertLevel = "normal" | "warning" | "danger" | "critical";
@@ -56,7 +55,9 @@ const SistemaExploracion = ({
 }) => {
   return (
     <div className="border border-gray-200 rounded-lg p-4">
-      <label className="block mb-3 font-medium text-gray-800">{nombre}</label>
+      <label className="block mb-3 font-medium text-gray-800">
+        {nombre} <span className="text-red-500">*</span>
+      </label>
       <div className="flex gap-4 mb-3">
         <label className="flex items-center gap-2 cursor-pointer">
           <input
@@ -106,6 +107,9 @@ const SistemaExploracion = ({
               estado === "normal" ? "border-green-300 bg-green-50/30" : "border-gray-300"
             }`}
           />
+
+          {estado=== "normal" &&(
+          
           
           <div className="mt-2">
             <button
@@ -198,13 +202,14 @@ const SistemaExploracion = ({
               </div>
             )}
           </div>
+          )}
         </>
       )}
     </div>
   );
 };
 
-export function ExploracionFisica({ data, updateData, onNext, onPrevious, onCancel }: Props) {
+export function ExploracionFisica({ data, updateData, onNext, onPrevious }: Props) {
   const [imc, setImc] = useState<string>("");
   const [showTemplates, setShowTemplates] = useState<{[key: string]: boolean}>({
     cardiovascular: false,
@@ -453,9 +458,9 @@ export function ExploracionFisica({ data, updateData, onNext, onPrevious, onCanc
     const valor = parseFloat(sat);
     if (isNaN(valor) || !sat) return null;
     
-    if (valor < 90) return { level: "critical", message: "Saturación crítica - Requiere atención inmediata" };
-    if (valor < 95) return { level: "danger", message: "Saturación baja" };
-    if (valor < 97) return { level: "warning", message: "Saturación levemente baja" };
+    if (valor < 85) return { level: "critical", message: "Saturación crítica - Requiere atención inmediata" };
+    if (valor < 90) return { level: "danger", message: "Saturación baja" };
+    if (valor < 95) return { level: "warning", message: "Saturación levemente baja" };
     return { level: "normal", message: "Saturación normal" };
   };
 
@@ -486,7 +491,7 @@ export function ExploracionFisica({ data, updateData, onNext, onPrevious, onCanc
   const categoria = imc ? getImcCategoria(parseFloat(imc)) : null;
 
   const handleNext = () => {
-    // Validaciones de campos obligatorios
+    // Validaciones de campos obligatorios - Antropometría
     if (!data.estatura || parseFloat(data.estatura) <= 0) {
       alert("Por favor ingrese la estatura (talla)");
       return;
@@ -495,6 +500,8 @@ export function ExploracionFisica({ data, updateData, onNext, onPrevious, onCanc
       alert("Por favor ingrese el peso");
       return;
     }
+
+    // Validaciones de Signos Vitales
     if (!data.presionArterial.trim()) {
       alert("Por favor ingrese la presión arterial (TA)");
       return;
@@ -511,7 +518,34 @@ export function ExploracionFisica({ data, updateData, onNext, onPrevious, onCanc
       alert("Por favor ingrese la temperatura (T°)");
       return;
     }
-    // Saturación de oxígeno ya NO es obligatoria
+
+    // Validaciones de Exploración por Sistemas
+    const sistemasRequeridos = [
+      { clave: "cardiovascular", nombre: "Sistema Cardiovascular" },
+      { clave: "respiratorio", nombre: "Sistema Respiratorio" },
+      { clave: "digestivo", nombre: "Sistema Digestivo" },
+      { clave: "neurologico", nombre: "Sistema Neurológico" },
+      { clave: "musculoesqueletico", nombre: "Sistema Musculoesquelético" },
+      { clave: "genitourinario", nombre: "Sistema Genitourinario" },
+      { clave: "endocrino", nombre: "Sistema Endocrino" },
+      { clave: "pielFaneras", nombre: "Piel y Faneras" }
+    ];
+
+    for (const sistema of sistemasRequeridos) {
+      const explorationData = (data.exploracionSistemas as any)[sistema.clave];
+      
+      // Validar que se haya seleccionado Normal o Anormal
+      if (!explorationData || !explorationData.estado) {
+        alert(`Por favor seleccione Normal o Anormal para ${sistema.nombre}`);
+        return;
+      }
+
+      // Validar que tenga observaciones
+      if (!explorationData.observaciones || !explorationData.observaciones.trim()) {
+        alert(`Por favor complete las observaciones para ${sistema.nombre}`);
+        return;
+      }
+    }
 
     onNext();
   };
@@ -540,7 +574,7 @@ export function ExploracionFisica({ data, updateData, onNext, onPrevious, onCanc
               onChange={(e) => updateData({ estatura: e.target.value })}
               placeholder="Ej: 175"
               min="0"
-              step="0.1"
+              step="1"
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
@@ -663,6 +697,7 @@ export function ExploracionFisica({ data, updateData, onNext, onPrevious, onCanc
               onChange={(e) => updateData({ frecuenciaCardiaca: e.target.value })}
               placeholder="Ej: 70"
               min="0"
+              step="1"
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
@@ -683,6 +718,7 @@ export function ExploracionFisica({ data, updateData, onNext, onPrevious, onCanc
               onChange={(e) => updateData({ frecuenciaRespiratoria: e.target.value })}
               placeholder="Ej: 16"
               min="0"
+              step="1"
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
@@ -725,6 +761,7 @@ export function ExploracionFisica({ data, updateData, onNext, onPrevious, onCanc
               placeholder="Ej: 98"
               min="0"
               max="100"
+              step="1"
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>

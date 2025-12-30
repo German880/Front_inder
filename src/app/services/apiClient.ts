@@ -481,6 +481,29 @@ export const historiaClinicaService = {
   async delete(id: string) {
     await api.delete(`/historias_clinicas/${id}`);
   },
+
+  /**
+   * Crear historia clínica completa con todos los 7 pasos
+   * POST /api/v1/historias_clinicas/completa
+   */
+  async crearCompleta(data: any) {
+    const response = await api.post<any>(
+      '/historias_clinicas/completa',
+      data
+    );
+    return response.data;
+  },
+
+  /**
+   * Obtener historia clínica completa con todos los datos
+   * GET /api/v1/historias_clinicas/{historia_id}/datos-completos
+   */
+  async obtenerCompleta(historiaId: string) {
+    const response = await api.get<any>(
+      `/historias_clinicas/${historiaId}/datos-completos`
+    );
+    return response.data;
+  },
 };
 
 // ============================================================================

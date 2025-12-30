@@ -1,11 +1,6 @@
 import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { User, Phone, Mail, MapPin, Trophy, Globe } from "lucide-react";
-import { toast } from "sonner";
-
-// ============================================================================
-// TIPOS
-// ============================================================================
 
 type FormData = {
   nombreCompleto: string;
@@ -135,6 +130,7 @@ const ETNIAS = [
   "Otro",
   "Prefiero no decirlo"
 ];
+
 export function RegistroDeportista() {
   const [edad, setEdad] = useState<number | null>(null);
 
@@ -183,7 +179,7 @@ export function RegistroDeportista() {
   const onSubmit = (data: FormData) => {
     console.log("Datos del formulario:", data);
     console.log("Edad calculada:", edad);
-    toast.success("Datos guardados correctamente");
+    alert("Datos guardados correctamente. Ver consola para detalles.");
     // Aquí se enviarían los datos al backend
   };
 
@@ -200,7 +196,7 @@ export function RegistroDeportista() {
   return (
     <div className="max-w-4xl mx-auto p-6 py-8">
       <div className="bg-white rounded-lg shadow-md p-8">
-        <h1 className="text-center mb-8 text-blue-600 text-3xl font-bold">Registro de Datos Personales</h1>
+        <h1 className="text-center mb-8 text-blue-600">Registro de Datos Personales</h1>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
           {/* DATOS PERSONALES */}

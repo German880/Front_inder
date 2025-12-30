@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { HistoriaClinicaData } from "../HistoriaClinica";
-import { ChevronLeft, ChevronRight, Upload, X, Plus, Trash2, FlaskConical, ScanLine, Activity, Dumbbell, AlertCircle, Search } from "lucide-react";
+import { ChevronLeft, ChevronRight, Upload, X, Plus, Trash2, FlaskConical, ScanLine, Activity, Dumbbell, AlertCircle, Search, File, Paperclip } from "lucide-react";
 import { buscarProcedimientoPorCodigo, buscarCodigosPorNombre, formatearCodigoCUPS } from "./cupsDatabase";
 
 type Props = {
@@ -8,7 +8,6 @@ type Props = {
   updateData: (data: Partial<HistoriaClinicaData>) => void;
   onNext: () => void;
   onPrevious: () => void;
-  onCancel?: () => void;
 };
 
 const getCategoriaIcon = (categoria: string) => {
@@ -28,7 +27,7 @@ const getCategoriaIcon = (categoria: string) => {
   }
 };
 
-export function PruebasComplementarias({ data, updateData, onNext, onPrevious, onCancel }: Props) {
+export function PruebasComplementarias({ data, updateData, onNext, onPrevious }: Props) {
   const [codigoCUPS, setCodigoCUPS] = useState("");
   const [nombreProcedimiento, setNombreProcedimiento] = useState("");
   const [categoriaProcedimiento, setCategoriaProcedimiento] = useState("");
@@ -36,6 +35,8 @@ export function PruebasComplementarias({ data, updateData, onNext, onPrevious, o
   const [errorCodigoCUPS, setErrorCodigoCUPS] = useState("");
   const [sugerenciasCUPS, setSugerenciasCUPS] = useState<Array<{ codigo: string; nombre: string; categoria: string }>>([]);
   const [mostrarSugerenciasCUPS, setMostrarSugerenciasCUPS] = useState(false);
+  const [archivosSeleccionados, setArchivosSeleccionados] = useState<File[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Buscar automáticamente por código CUPS
   const handleCodigoCUPSChange = (codigo: string) => {
@@ -93,6 +94,19 @@ export function PruebasComplementarias({ data, updateData, onNext, onPrevious, o
     setErrorCodigoCUPS("");
   };
 
+  // Manejar selección de archivos
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const newFiles = Array.from(e.target.files);
+      setArchivosSeleccionados([...archivosSeleccionados, ...newFiles]);
+    }
+  };
+
+  // Eliminar archivo seleccionado
+  const eliminarArchivoSeleccionado = (index: number) => {
+    setArchivosSeleccionados(archivosSeleccionados.filter((_, i) => i !== index));
+  };
+
   const handleAgregarPrueba = () => {
     if (!nombreProcedimiento.trim()) {
       alert("Busque y seleccione un procedimiento o escriba el nombre de la prueba");
@@ -104,6 +118,7 @@ export function PruebasComplementarias({ data, updateData, onNext, onPrevious, o
       nombrePrueba: nombreProcedimiento.trim(),
       codigoCUPS: codigoCUPS,
       resultado: resultado,
+      archivosAdjuntos: archivosSeleccionados,
     };
 
     updateData({
@@ -118,6 +133,10 @@ export function PruebasComplementarias({ data, updateData, onNext, onPrevious, o
     setErrorCodigoCUPS("");
     setSugerenciasCUPS([]);
     setMostrarSugerenciasCUPS(false);
+    setArchivosSeleccionados([]);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
   };
 
   const handleEliminarPrueba = (index: number) => {
@@ -125,9 +144,18 @@ export function PruebasComplementarias({ data, updateData, onNext, onPrevious, o
     updateData({ ayudasDiagnosticas: updated });
   };
 
-  const getFileNames = () => {
-    if (!data.archivosAdjuntos || data.archivosAdjuntos.length === 0) return [];
-    return Array.from(data.archivosAdjuntos).map((file) => file.name);
+  // Eliminar archivo de una prueba existente
+  const handleEliminarArchivoPrueba = (indexPrueba: number, indexArchivo: number) => {
+    const pruebasActualizadas = data.ayudasDiagnosticas.map((prueba, i) => {
+      if (i === indexPrueba) {
+        return {
+          ...prueba,
+          archivosAdjuntos: prueba.archivosAdjuntos.filter((_, j) => j !== indexArchivo),
+        };
+      }
+      return prueba;
+    });
+    updateData({ ayudasDiagnosticas: pruebasActualizadas });
   };
 
   return (
@@ -274,6 +302,58 @@ export function PruebasComplementarias({ data, updateData, onNext, onPrevious, o
             />
           </div>
 
+          {/* Adjuntar archivos */}
+          <div>
+            <label className="block mb-2 text-sm font-medium text-gray-700 flex items-center gap-2">
+              <Paperclip className="w-4 h-4" />
+              Adjuntar archivos (opcional)
+            </label>
+            <div className="border-2 border-dashed border-gray-300 rounded-md p-4 text-center hover:border-blue-400 transition-colors">
+              <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+              <label className="cursor-pointer">
+                <span className="text-blue-600 hover:text-blue-700 font-medium text-sm">Seleccionar archivos</span>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  accept=".pdf,.jpg,.jpeg,.png,.dcm"
+                  onChange={handleFileChange}
+                  className="hidden"
+                />
+              </label>
+              <p className="text-xs text-gray-500 mt-1">
+                Formatos: PDF, JPG, PNG, DICOM
+              </p>
+            </div>
+
+            {/* Archivos seleccionados para esta prueba */}
+            {archivosSeleccionados.length > 0 && (
+              <div className="mt-3 space-y-2">
+                <p className="text-xs font-medium text-gray-700">Archivos seleccionados:</p>
+                {archivosSeleccionados.map((file, index) => (
+                  <div
+                    key={index}
+                    className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-md px-3 py-2"
+                  >
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <File className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                      <span className="text-sm text-gray-700 truncate">{file.name}</span>
+                      <span className="text-xs text-gray-500">({(file.size / 1024).toFixed(1)} KB)</span>
+                    </div>
+                    <button
+                      onClick={() => eliminarArchivoSeleccionado(index)}
+                      className="text-red-500 hover:text-red-700 ml-2 flex-shrink-0"
+                      type="button"
+                      title="Eliminar archivo"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           {/* Botón agregar */}
           <button
             type="button"
@@ -297,39 +377,73 @@ export function PruebasComplementarias({ data, updateData, onNext, onPrevious, o
               return (
                 <div
                   key={index}
-                  className={`${bgColor} p-4 rounded-lg border border-gray-200 flex items-start justify-between`}
+                  className={`${bgColor} p-4 rounded-lg border border-gray-200`}
                 >
-                  <div className="flex items-start gap-3 flex-1">
-                    <Icon className={`w-5 h-5 ${color} mt-0.5`} />
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className={`text-xs font-medium ${color} px-2 py-0.5 bg-white rounded`}>
-                          {prueba.categoria}
-                        </span>
-                        {prueba.codigoCUPS && (
-                          <span className="text-xs font-mono bg-blue-100 text-blue-700 px-2 py-0.5 rounded border border-blue-200">
-                            CUPS: {formatearCodigoCUPS(prueba.codigoCUPS)}
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-start gap-3 flex-1">
+                      <Icon className={`w-5 h-5 ${color} mt-0.5`} />
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`text-xs font-medium ${color} px-2 py-0.5 bg-white rounded`}>
+                            {prueba.categoria}
                           </span>
+                          {prueba.codigoCUPS && (
+                            <span className="text-xs font-mono bg-blue-100 text-blue-700 px-2 py-0.5 rounded border border-blue-200">
+                              CUPS: {formatearCodigoCUPS(prueba.codigoCUPS)}
+                            </span>
+                          )}
+                        </div>
+                        <p className="font-medium text-gray-800 mt-2">
+                          {prueba.nombrePrueba}
+                        </p>
+                        {prueba.resultado && (
+                          <p className="text-sm text-gray-600 mt-2 bg-white/50 p-2 rounded">
+                            <span className="font-medium">Resultado:</span> {prueba.resultado}
+                          </p>
                         )}
                       </div>
-                      <p className="font-medium text-gray-800 mt-2">
-                        {prueba.nombrePrueba}
-                      </p>
-                      {prueba.resultado && (
-                        <p className="text-sm text-gray-600 mt-2 bg-white/50 p-2 rounded">
-                          <span className="font-medium">Resultado:</span> {prueba.resultado}
-                        </p>
-                      )}
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => handleEliminarPrueba(index)}
+                      className="ml-3 p-1.5 text-red-500 hover:bg-red-50 rounded transition-colors"
+                      title="Eliminar"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => handleEliminarPrueba(index)}
-                    className="ml-3 p-1.5 text-red-500 hover:bg-red-50 rounded transition-colors"
-                    title="Eliminar"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+
+                  {/* Archivos adjuntos de esta prueba */}
+                  {prueba.archivosAdjuntos && prueba.archivosAdjuntos.length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-gray-200">
+                      <p className="text-xs font-medium text-gray-700 mb-2 flex items-center gap-1">
+                        <Paperclip className="w-3 h-3" />
+                        Archivos adjuntos ({prueba.archivosAdjuntos.length}):
+                      </p>
+                      <div className="space-y-1.5">
+                        {prueba.archivosAdjuntos.map((archivo, archivoIndex) => (
+                          <div
+                            key={archivoIndex}
+                            className="flex items-center justify-between bg-white border border-gray-200 rounded px-3 py-1.5"
+                          >
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              <File className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" />
+                              <span className="text-xs text-gray-700 truncate">{archivo.name}</span>
+                              <span className="text-xs text-gray-500">({(archivo.size / 1024).toFixed(1)} KB)</span>
+                            </div>
+                            <button
+                              onClick={() => handleEliminarArchivoPrueba(index, archivoIndex)}
+                              className="text-red-500 hover:text-red-700 ml-2 flex-shrink-0"
+                              type="button"
+                              title="Eliminar archivo"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -348,50 +462,6 @@ export function PruebasComplementarias({ data, updateData, onNext, onPrevious, o
           </p>
         </div>
       )}
-
-      {/* Archivos adjuntos */}
-      <div>
-        <label className="block mb-2 font-medium text-gray-800">Archivos adjuntos (resultados, imágenes)</label>
-        <div className="border-2 border-dashed border-gray-300 rounded-md p-6 text-center hover:border-blue-400 transition-colors">
-          <Upload className="w-10 h-10 text-gray-400 mx-auto mb-3" />
-          <label className="cursor-pointer">
-            <span className="text-blue-600 hover:text-blue-700 font-medium">Seleccionar archivos</span>
-            <input
-              type="file"
-              multiple
-              accept=".pdf,.jpg,.jpeg,.png,.dcm"
-              onChange={(e) => updateData({ archivosAdjuntos: e.target.files })}
-              className="hidden"
-            />
-          </label>
-          <p className="text-xs text-gray-500 mt-2">
-            Formatos permitidos: PDF, JPG, PNG, DICOM
-          </p>
-        </div>
-
-        {/* Lista de archivos seleccionados */}
-        {getFileNames().length > 0 && (
-          <div className="mt-3 space-y-2">
-            <p className="text-sm font-medium text-gray-700">Archivos seleccionados:</p>
-            {getFileNames().map((fileName, index) => (
-              <div
-                key={index}
-                className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-md px-4 py-2"
-              >
-                <span className="text-sm text-gray-700 truncate">{fileName}</span>
-                <button
-                  onClick={() => updateData({ archivosAdjuntos: null })}
-                  className="text-red-500 hover:text-red-700 ml-2"
-                  type="button"
-                  title="Eliminar archivos"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
 
       {/* Botones de navegación */}
       <div className="flex flex-col sm:flex-row gap-3 pt-6 border-t border-gray-200">

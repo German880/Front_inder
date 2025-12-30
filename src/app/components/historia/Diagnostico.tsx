@@ -6,9 +6,10 @@ type Props = {
   updateData: (data: Partial<HistoriaClinicaData>) => void;
   onNext: () => void;
   onPrevious: () => void;
+  onCancel?: () => void;
 };
 
-export function Diagnostico({ data, updateData, onNext, onPrevious }: Props) {
+export function Diagnostico({ data, updateData, onNext, onPrevious, onCancel }: Props) {
   return (
     <div className="space-y-6">
       {/* Diagnóstico clínico */}

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { HistoriaClinicaData } from "../HistoriaClinica";
-import { ChevronRight, ChevronLeft, Plus, Trash2, User, Users, AlertCircle } from "lucide-react";
+import { ChevronRight, ChevronLeft, Plus, Trash2, User, Users, AlertCircle, FileText, X } from "lucide-react";
 import { buscarEnfermedadPorCodigo, buscarCodigosPorNombre } from "./cie11Database";
 
 type Props = {
@@ -8,7 +8,6 @@ type Props = {
   updateData: (data: Partial<HistoriaClinicaData>) => void;
   onNext: () => void;
   onPrevious: () => void;
-  onCancel?: () => void;
 };
 
 const vacunasDisponibles = ["Tétanos", "Hepatitis", "Influenza", "COVID-19", "Fiebre Amarilla", "Otras"];
@@ -26,7 +25,7 @@ const familiares = [
   "Otro"
 ];
 
-export function AntecedentesMedicos({ data, updateData, onNext, onPrevious, onCancel }: Props) {
+export function AntecedentesMedicos({ data, updateData, onNext, onPrevious }: Props) {
   // Estados para agregar antecedentes personales
   const [nuevoCodigoPersonal, setNuevoCodigoPersonal] = useState("");
   const [nuevoNombrePersonal, setNuevoNombrePersonal] = useState("");
@@ -604,38 +603,473 @@ export function AntecedentesMedicos({ data, updateData, onNext, onPrevious, onCa
 
       {/* ALERGIAS */}
       <div>
-        <label className="block mb-3 font-medium text-gray-800">Alergias</label>
-        <div className="flex gap-4 mb-3">
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="radio"
-              name="alergias"
-              checked={data.tieneAlergias === true}
-              onChange={() => updateData({ tieneAlergias: true })}
-              className="w-4 h-4 text-blue-600 focus:ring-2 focus:ring-blue-500"
-            />
-            <span className="text-gray-700">Sí</span>
-          </label>
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="radio"
-              name="alergias"
-              checked={data.tieneAlergias === false}
-              onChange={() => updateData({ tieneAlergias: false, alergias: "" })}
-              className="w-4 h-4 text-blue-600 focus:ring-2 focus:ring-blue-500"
-            />
-            <span className="text-gray-700">No</span>
-          </label>
+        <div className="flex items-center gap-3 mb-4">
+          <div className="flex items-center gap-2">
+            <label className="font-medium text-gray-800">Alergias</label>
+          </div>
+          <div className="flex gap-3">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="radio"
+                name="alergias"
+                checked={data.tieneAlergias === true}
+                onChange={() => updateData({ tieneAlergias: true })}
+                className="w-4 h-4 text-red-600 focus:ring-2 focus:ring-red-500"
+              />
+              <span className="text-gray-700">Sí</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="radio"
+                name="alergias"
+                checked={data.tieneAlergias === false}
+                onChange={() => updateData({ tieneAlergias: false, alergias: {} })}
+                className="w-4 h-4 text-red-600 focus:ring-2 focus:ring-red-500"
+              />
+              <span className="text-gray-700">No</span>
+            </label>
+          </div>
         </div>
 
         {data.tieneAlergias && (
-          <input
-            type="text"
-            value={data.alergias}
-            onChange={(e) => updateData({ alergias: e.target.value })}
-            placeholder="Especifique las alergias (medicamentos, alimentos, sustancias)..."
-            className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+          <div className="space-y-4 ml-4 grid grid-cols-1 gap-6">
+            {/* ALERGIAS RESPIRATORIAS */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 bg-red-500 rounded-full"></span>
+                  <span className="font-medium text-gray-800">Respiratorias</span>
+                </div>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer min-w-[80px]">
+                    <input
+                      type="radio"
+                      name="respiratorias"
+                      checked={data.alergias?.respiratorias !== undefined}
+                      onChange={() => {
+                        const newAlergias = { ...data.alergias };
+                        newAlergias.respiratorias = {};
+                        updateData({ alergias: newAlergias });
+                      }}
+                      className="w-4 h-4 text-blue-600 focus:ring-2 focus:ring-blue-500"
+                    />
+                    <span className="text-sm text-gray-600">Sí</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer min-w-[80px]">
+                    <input
+                      type="radio"
+                      name="respiratorias"
+                      checked={data.alergias?.respiratorias === undefined}
+                      onChange={() => {
+                        const newAlergias = { ...data.alergias };
+                        delete newAlergias.respiratorias;
+                        updateData({ alergias: newAlergias });
+                      }}
+                      className="w-4 h-4 text-blue-600 focus:ring-2 focus:ring-blue-500"
+                    />
+                    <span className="text-sm text-gray-600">No</span>
+                  </label>
+                </div>
+              </div>
+
+              {data.alergias?.respiratorias !== undefined && (
+                <div className="space-y-2 ml-6 border-l-2 border-red-300 pl-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={data.alergias.respiratorias.asma || false}
+                      onChange={(e) => {
+                        const newAlergias = { ...data.alergias };
+                        newAlergias.respiratorias.asma = e.target.checked;
+                        updateData({ alergias: newAlergias });
+                      }}
+                      className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                    />
+                    <span className="text-gray-700">Asma</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={data.alergias.respiratorias.rinitis || false}
+                      onChange={(e) => {
+                        const newAlergias = { ...data.alergias };
+                        newAlergias.respiratorias.rinitis = e.target.checked;
+                        updateData({ alergias: newAlergias });
+                      }}
+                      className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                    />
+                    <span className="text-gray-700">Rinitis</span>
+                  </label>
+                  <div>
+                    <label className="flex items-center gap-2 cursor-pointer mb-2">
+                      <input
+                        type="checkbox"
+                        checked={!!data.alergias.respiratorias.otro}
+                        onChange={(e) => {
+                          const newAlergias = { ...data.alergias };
+                          newAlergias.respiratorias.otro = e.target.checked ? "" : undefined;
+                          updateData({ alergias: newAlergias });
+                        }}
+                        className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                      />
+                      <span className="text-gray-700">Otro</span>
+                    </label>
+                    {data.alergias.respiratorias.otro !== undefined && (
+                      <input
+                        type="text"
+                        value={data.alergias.respiratorias.otro || ""}
+                        onChange={(e) => {
+                          const newAlergias = { ...data.alergias };
+                          newAlergias.respiratorias.otro = e.target.value;
+                          updateData({ alergias: newAlergias });
+                        }}
+                        placeholder="Especifique..."
+                        className="ml-6 w-48 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* ALERGIAS DIGESTIVAS */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 bg-red-500 rounded-full"></span>
+                  <span className="font-medium text-gray-800">Digestivas</span>
+                </div>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer min-w-[80px]">
+                    <input
+                      type="radio"
+                      name="digestivas"
+                      checked={data.alergias?.digestivas !== undefined}
+                      onChange={() => {
+                        const newAlergias = { ...data.alergias };
+                        newAlergias.digestivas = {};
+                        updateData({ alergias: newAlergias });
+                      }}
+                      className="w-4 h-4 text-green-600 focus:ring-2 focus:ring-green-500"
+                    />
+                    <span className="text-sm text-gray-600">Sí</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer min-w-[80px]">
+                    <input
+                      type="radio"
+                      name="digestivas"
+                      checked={data.alergias?.digestivas === undefined}
+                      onChange={() => {
+                        const newAlergias = { ...data.alergias };
+                        delete newAlergias.digestivas;
+                        updateData({ alergias: newAlergias });
+                      }}
+                      className="w-4 h-4 text-green-600 focus:ring-2 focus:ring-green-500"
+                    />
+                    <span className="text-sm text-gray-600">No</span>
+                  </label>
+                </div>
+              </div>
+
+              {data.alergias?.digestivas !== undefined && (
+                <div className="space-y-2 ml-6 border-l-2 border-red-300 pl-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={data.alergias.digestivas.gluten || false}
+                      onChange={(e) => {
+                        const newAlergias = { ...data.alergias };
+                        newAlergias.digestivas.gluten = e.target.checked;
+                        updateData({ alergias: newAlergias });
+                      }}
+                      className="w-4 h-4 text-green-600 rounded focus:ring-2 focus:ring-green-500"
+                    />
+                    <span className="text-gray-700">Gluten</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={data.alergias.digestivas.nueces || false}
+                      onChange={(e) => {
+                        const newAlergias = { ...data.alergias };
+                        newAlergias.digestivas.nueces = e.target.checked;
+                        updateData({ alergias: newAlergias });
+                      }}
+                      className="w-4 h-4 text-green-600 rounded focus:ring-2 focus:ring-green-500"
+                    />
+                    <span className="text-gray-700">Nueces</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={data.alergias.digestivas.lacteos || false}
+                      onChange={(e) => {
+                        const newAlergias = { ...data.alergias };
+                        newAlergias.digestivas.lacteos = e.target.checked;
+                        updateData({ alergias: newAlergias });
+                      }}
+                      className="w-4 h-4 text-green-600 rounded focus:ring-2 focus:ring-green-500"
+                    />
+                    <span className="text-gray-700">Lácteos</span>
+                  </label>
+                  <div>
+                    <label className="flex items-center gap-2 cursor-pointer mb-2">
+                      <input
+                        type="checkbox"
+                        checked={!!data.alergias.digestivas.otro}
+                        onChange={(e) => {
+                          const newAlergias = { ...data.alergias };
+                          newAlergias.digestivas.otro = e.target.checked ? "" : undefined;
+                          updateData({ alergias: newAlergias });
+                        }}
+                        className="w-4 h-4 text-green-600 rounded focus:ring-2 focus:ring-green-500"
+                      />
+                      <span className="text-gray-700">Otro</span>
+                    </label>
+                    {data.alergias.digestivas.otro !== undefined && (
+                      <input
+                        type="text"
+                        value={data.alergias.digestivas.otro || ""}
+                        onChange={(e) => {
+                          const newAlergias = { ...data.alergias };
+                          newAlergias.digestivas.otro = e.target.value;
+                          updateData({ alergias: newAlergias });
+                        }}
+                        placeholder="Especifique..."
+                        className="ml-6 w-48 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500"
+                      />
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* ALERGIAS DERMATOLÓGICAS */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 bg-red-500 rounded-full"></span>
+                  <span className="font-medium text-gray-800">Dermatológicas</span>
+                </div>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer min-w-[80px]">
+                    <input
+                      type="radio"
+                      name="dermatologicas"
+                      checked={data.alergias?.dermatologicas !== undefined}
+                      onChange={() => {
+                        const newAlergias = { ...data.alergias };
+                        newAlergias.dermatologicas = {};
+                        updateData({ alergias: newAlergias });
+                      }}
+                      className="w-4 h-4 text-yellow-600 focus:ring-2 focus:ring-yellow-500"
+                    />
+                    <span className="text-sm text-gray-600">Sí</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer min-w-[80px]">
+                    <input
+                      type="radio"
+                      name="dermatologicas"
+                      checked={data.alergias?.dermatologicas === undefined}
+                      onChange={() => {
+                        const newAlergias = { ...data.alergias };
+                        delete newAlergias.dermatologicas;
+                        updateData({ alergias: newAlergias });
+                      }}
+                      className="w-4 h-4 text-yellow-600 focus:ring-2 focus:ring-yellow-500"
+                    />
+                    <span className="text-sm text-gray-600">No</span>
+                  </label>
+                </div>
+              </div>
+
+              {data.alergias?.dermatologicas !== undefined && (
+                <div className="space-y-2 ml-6 border-l-2 border-red-300 pl-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={data.alergias.dermatologicas.eccema || false}
+                      onChange={(e) => {
+                        const newAlergias = { ...data.alergias };
+                        newAlergias.dermatologicas.eccema = e.target.checked;
+                        updateData({ alergias: newAlergias });
+                      }}
+                      className="w-4 h-4 text-yellow-600 rounded focus:ring-2 focus:ring-yellow-500"
+                    />
+                    <span className="text-gray-700">Eccema</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={data.alergias.dermatologicas.urticaria || false}
+                      onChange={(e) => {
+                        const newAlergias = { ...data.alergias };
+                        newAlergias.dermatologicas.urticaria = e.target.checked;
+                        updateData({ alergias: newAlergias });
+                      }}
+                      className="w-4 h-4 text-yellow-600 rounded focus:ring-2 focus:ring-yellow-500"
+                    />
+                    <span className="text-gray-700">Urticaria</span>
+                  </label>
+                  <div>
+                    <label className="flex items-center gap-2 cursor-pointer mb-2">
+                      <input
+                        type="checkbox"
+                        checked={!!data.alergias.dermatologicas.otro}
+                        onChange={(e) => {
+                          const newAlergias = { ...data.alergias };
+                          newAlergias.dermatologicas.otro = e.target.checked ? "" : undefined;
+                          updateData({ alergias: newAlergias });
+                        }}
+                        className="w-4 h-4 text-yellow-600 rounded focus:ring-2 focus:ring-yellow-500"
+                      />
+                      <span className="text-gray-700">Otro</span>
+                    </label>
+                    {data.alergias.dermatologicas.otro !== undefined && (
+                      <input
+                        type="text"
+                        value={data.alergias.dermatologicas.otro || ""}
+                        onChange={(e) => {
+                          const newAlergias = { ...data.alergias };
+                          newAlergias.dermatologicas.otro = e.target.value;
+                          updateData({ alergias: newAlergias });
+                        }}
+                        placeholder="Especifique..."
+                        className="ml-6 w-48 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                      />
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* ALERGIAS MEDICAMENTOSAS */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 bg-red-500 rounded-full"></span>
+                  <span className="font-medium text-gray-800">Medicamentosas</span>
+                </div>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer min-w-[80px]">
+                    <input
+                      type="radio"
+                      name="medicamentosas"
+                      checked={data.alergias?.medicamentosas !== undefined}
+                      onChange={() => {
+                        const newAlergias = { ...data.alergias };
+                        newAlergias.medicamentosas = {};
+                        updateData({ alergias: newAlergias });
+                      }}
+                      className="w-4 h-4 text-purple-600 focus:ring-2 focus:ring-purple-500"
+                    />
+                    <span className="text-sm text-gray-600">Sí</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer min-w-[80px]">
+                    <input
+                      type="radio"
+                      name="medicamentosas"
+                      checked={data.alergias?.medicamentosas === undefined}
+                      onChange={() => {
+                        const newAlergias = { ...data.alergias };
+                        delete newAlergias.medicamentosas;
+                        updateData({ alergias: newAlergias });
+                      }}
+                      className="w-4 h-4 text-purple-600 focus:ring-2 focus:ring-purple-500"
+                    />
+                    <span className="text-sm text-gray-600">No</span>
+                  </label>
+                </div>
+              </div>
+
+              {data.alergias?.medicamentosas !== undefined && (
+                <div className="space-y-2 ml-6 border-l-2 border-red-300 pl-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={data.alergias.medicamentosas.aines || false}
+                      onChange={(e) => {
+                        const newAlergias = { ...data.alergias };
+                        newAlergias.medicamentosas.aines = e.target.checked;
+                        updateData({ alergias: newAlergias });
+                      }}
+                      className="w-4 h-4 text-purple-600 rounded focus:ring-2 focus:ring-purple-500"
+                    />
+                    <span className="text-gray-700">AINEs</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={data.alergias.medicamentosas.paracetamol || false}
+                      onChange={(e) => {
+                        const newAlergias = { ...data.alergias };
+                        newAlergias.medicamentosas.paracetamol = e.target.checked;
+                        updateData({ alergias: newAlergias });
+                      }}
+                      className="w-4 h-4 text-purple-600 rounded focus:ring-2 focus:ring-purple-500"
+                    />
+                    <span className="text-gray-700">Paracetamol</span>
+                  </label>
+                  <div>
+                    <label className="flex items-center gap-2 cursor-pointer mb-2">
+                      <input
+                        type="checkbox"
+                        checked={!!data.alergias.medicamentosas.antibioticos}
+                        onChange={(e) => {
+                          const newAlergias = { ...data.alergias };
+                          newAlergias.medicamentosas.antibioticos = e.target.checked ? "" : undefined;
+                          updateData({ alergias: newAlergias });
+                        }}
+                        className="w-4 h-4 text-purple-600 rounded focus:ring-2 focus:ring-purple-500"
+                      />
+                      <span className="text-gray-700">Antibióticos (especifique cuál)</span>
+                    </label>
+                    {data.alergias.medicamentosas.antibioticos !== undefined && (
+                      <input
+                        type="text"
+                        value={data.alergias.medicamentosas.antibioticos || ""}
+                        onChange={(e) => {
+                          const newAlergias = { ...data.alergias };
+                          newAlergias.medicamentosas.antibioticos = e.target.value;
+                          updateData({ alergias: newAlergias });
+                        }}
+                        placeholder="Ej: Penicilina, Cefalosporina..."
+                        className="ml-6 w-56 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      />
+                    )}
+                  </div>
+                  <div>
+                    <label className="flex items-center gap-2 cursor-pointer mb-2">
+                      <input
+                        type="checkbox"
+                        checked={!!data.alergias.medicamentosas.otro}
+                        onChange={(e) => {
+                          const newAlergias = { ...data.alergias };
+                          newAlergias.medicamentosas.otro = e.target.checked ? "" : undefined;
+                          updateData({ alergias: newAlergias });
+                        }}
+                        className="w-4 h-4 text-purple-600 rounded focus:ring-2 focus:ring-purple-500"
+                      />
+                      <span className="text-gray-700">Otro</span>
+                    </label>
+                    {data.alergias.medicamentosas.otro !== undefined && (
+                      <input
+                        type="text"
+                        value={data.alergias.medicamentosas.otro || ""}
+                        onChange={(e) => {
+                          const newAlergias = { ...data.alergias };
+                          newAlergias.medicamentosas.otro = e.target.value;
+                          updateData({ alergias: newAlergias });
+                        }}
+                        placeholder="Especifique..."
+                        className="ml-6 w-48 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      />
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         )}
       </div>
 
@@ -676,24 +1110,10 @@ export function AntecedentesMedicos({ data, updateData, onNext, onPrevious, onCa
         )}
       </div>
 
-      {/* VACUNAS */}
-      <div>
-        <label className="block mb-3 font-medium text-gray-800">Vacunas</label>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          {vacunasDisponibles.map((vacuna) => (
-            <label key={vacuna} className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={data.vacunas.includes(vacuna)}
-                onChange={() => handleVacunaToggle(vacuna)}
-                className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
-              />
-              <span className="text-gray-700">{vacuna}</span>
-            </label>
-          ))}
-        </div>
-      </div>
 
+
+
+      
       {/* Botones */}
       <div className="flex flex-col sm:flex-row gap-3 pt-6 border-t border-gray-200">
         <button

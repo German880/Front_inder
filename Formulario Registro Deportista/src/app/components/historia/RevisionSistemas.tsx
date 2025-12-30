@@ -6,7 +6,6 @@ type Props = {
   updateData: (data: Partial<HistoriaClinicaData>) => void;
   onNext: () => void;
   onPrevious: () => void;
-  onCancel?: () => void;
 };
 
 type Sistema = {
@@ -85,7 +84,7 @@ const sistemas: Sistema[] = [
   },
 ];
 
-export function RevisionSistemas({ data, updateData, onNext, onPrevious, onCancel }: Props) {
+export function RevisionSistemas({ data, updateData, onNext, onPrevious }: Props) {
   const handleEstadoChange = (sistemaId: keyof HistoriaClinicaData["revisionSistemas"], estado: "normal" | "anormal") => {
     const newRevision = { ...data.revisionSistemas };
     newRevision[sistemaId] = {
@@ -213,7 +212,7 @@ export function RevisionSistemas({ data, updateData, onNext, onPrevious, onCance
                   {/* Mensaje informativo si está marcado como normal */}
                   {estadoActual === "normal" && (
                     <p className="text-xs text-green-700 mt-1">
-                      ✓ Sistema evaluado sin hallazgos patológicos
+                      ✓ Sistema evaluado sin hallazgos patológicos previos
                     </p>
                   )}
                 </div>
