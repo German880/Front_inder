@@ -1,30 +1,25 @@
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { Navbar } from "./components/Navbar";
+import { CatalogosProvider } from "./contexts/CatalogosContext";
+import Navbar from "./components/Navbar";
 import { Inicio } from "./components/Inicio";
 import { RegistroDeportista } from "./components/RegistroDeportista";
 import { HistoriaClinica } from "./components/HistoriaClinica";
 import { SelectDeportista } from "./components/SelectDeportista";
-import { VistaPlaceholder } from "./components/VistaPlaceholder";
-import { deportistasService } from "./services";
-
-type Deportista = {
-  id: string;
-  foto: string | null;
-  nombreCompleto: string;
-  numeroDocumento: string;
-  tipoDocumento: string;
-  edad: number;
-  tipoDeporte: string;
-};
+import { CitasManager } from "./components/CitasManager";
+import { ListadoDeportistas } from "./components/ListadoDeportistas";
+import { DetalleDeportista } from "./components/DetalleDeportista";
+import { deportistasService, Deportista } from "./services/apiClient";
 
 export default function App() {
   const [currentView, setCurrentView] = useState("inicio");
   const [selectedDeportista, setSelectedDeportista] = useState<Deportista | null>(null);
+  const [selectedDeportistaId, setSelectedDeportistaId] = useState<string | null>(null);
 
   const handleSelectDeportista = (deportista: Deportista) => {
     setSelectedDeportista(deportista);
+    setSelectedDeportistaId(deportista.id); // Agregar esta línea
     setCurrentView("historia-form");
   };
 
@@ -53,8 +48,7 @@ export default function App() {
       case "historia":
         return (
           <SelectDeportista
-            onSelectDeportista={handleSelectDeportista}
-            onBack={() => setCurrentView("inicio")}
+            onSelect={handleSelectDeportista}
           />
         );
       case "historia-form":
@@ -65,25 +59,25 @@ export default function App() {
           />
         ) : (
           <SelectDeportista
-            onSelectDeportista={handleSelectDeportista}
-            onBack={() => setCurrentView("inicio")}
+            onSelect={handleSelectDeportista}
           />
         );
       case "deportistas":
-        return (
-          <VistaPlaceholder
-            titulo="Lista de Deportistas"
-            descripcion="Aquí podrás ver y gestionar todos los deportistas registrados en el sistema."
-          />
+        return <ListadoDeportistas />;
+      case "detalles-deportista":
+        return selectedDeportistaId ? (
+          <DetalleDeportista deportistaId={selectedDeportistaId} />
+        ) : (
+          <ListadoDeportistas />
         );
       case "consultas":
-        return <GestionCitas />;
+        return <CitasManager />;
       case "configuracion":
         return (
-          <VistaPlaceholder
-            titulo="Configuración"
-            descripcion="Configura los parámetros del sistema y gestiona usuarios."
-          />
+          <div className="p-8">
+            <h1 className="text-2xl font-bold">Configuración</h1>
+            <p className="text-gray-600">Configura los parámetros del sistema y gestiona usuarios.</p>
+          </div>
         );
       default:
         return <Inicio onNavigate={setCurrentView} />;
@@ -91,9 +85,11 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <Navbar onNavigate={setCurrentView} currentView={currentView} />
-      {renderView()}
-    </div>
+    <CatalogosProvider>
+      <div className="min-h-screen bg-slate-50">
+        <Navbar onNavigate={setCurrentView} currentView={currentView} />
+        {renderView()}
+      </div>
+    </CatalogosProvider>
   );
 }

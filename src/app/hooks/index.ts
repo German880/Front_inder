@@ -1,9 +1,13 @@
-export { useAsync } from './customHooks';
-export { useDeportistas } from './customHooks';
-export { useHistoriaClinica } from './customHooks';
-export { usePagination } from './customHooks';
-export { useDebounce } from './customHooks';
-export { useLocalStorage } from './customHooks';
-export { useFormState } from './customHooks';
-export { useIsMounted } from './customHooks';
-export { usePrevious } from './customHooks';
+// Exportar todos los hooks en un solo archivo para facilitar importaciones
+
+export { useCatalogos } from './useCatalogos';
+export { useCatalogo } from './useCatalogo';
+export { useDeportistas } from './useDeportistas';
+export { useHistoriaClinica } from './useHistoriaClinica';
+export { useCitas } from './useCitas';
+export { useFormularios } from './useFormularios';
+export { useFormularioWithValidation } from './useFormularioWithValidation';
+export { useAsync } from './useAsync';
+
+// Tipos
+export type { CatalogosContexto } from './useCatalogos';

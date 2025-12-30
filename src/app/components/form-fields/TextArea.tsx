@@ -1,59 +1,60 @@
 import React from 'react';
-import { FieldError, UseFormRegisterReturn } from 'react-hook-form';
-import { AlertCircle } from 'lucide-react';
 
-export interface TextAreaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
-  label: string;
+interface TextAreaProps {
+  label?: string;
+  value: string;
+  onChange: (value: string) => void; // ← Recibe STRING, no evento
+  placeholder?: string;
+  rows?: number;
   required?: boolean;
-  error?: FieldError | string;
-  helperText?: string;
-  registration?: UseFormRegisterReturn;
+  error?: string;
+  disabled?: boolean;
 }
 
-export const TextArea: React.FC<TextAreaProps> = ({
+export function TextArea({
   label,
-  required,
+  value,
+  onChange,
+  placeholder,
+  rows = 4,
+  required = false,
   error,
-  helperText,
-  registration,
-  className,
-  ...textareaProps
-}) => {
-  const errorMessage = typeof error === 'string' ? error : error?.message;
-
+  disabled = false,
+}: TextAreaProps) {
   return (
-    <div className="flex flex-col gap-2">
-      <label className="text-sm font-medium text-gray-700">
-        {label}
-        {required && <span className="text-red-500 ml-1">*</span>}
-      </label>
-
-      <textarea
-        className={`
-          w-full px-4 py-2 border rounded-lg
-          focus:outline-none focus:ring-2 focus:ring-offset-1
-          transition-colors duration-200
-          resize-vertical min-h-24
-          ${error ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 focus:ring-blue-500'}
-          ${className || ''}
-        `}
-        {...textareaProps}
-        {...registration}
-      />
-
-      {errorMessage && (
-        <div className="flex items-center gap-2 text-red-500 text-sm">
-          <AlertCircle className="w-4 h-4" />
-          <span>{errorMessage}</span>
-        </div>
+    <div className="w-full">
+      {label && (
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          {label}
+          {required && <span className="text-red-500 ml-1">*</span>}
+        </label>
       )}
 
-      {helperText && !error && (
-        <p className="text-gray-500 text-sm">{helperText}</p>
+      <textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)} 
+        placeholder={placeholder}
+        rows={rows}
+        required={required}
+        disabled={disabled}
+        className={`
+          w-full px-4 py-2 border rounded-lg
+          focus:ring-2 focus:ring-blue-500 focus:border-transparent
+          disabled:bg-gray-100 disabled:cursor-not-allowed
+          transition resize-none
+          ${
+            error
+              ? 'border-red-500 focus:ring-red-500'
+              : 'border-gray-300'
+          }
+        `}
+      />
+
+      {error && (
+        <p className="mt-1 text-sm text-red-500">{error}</p>
       )}
     </div>
   );
-};
+}
 
-export const TextAreaField = TextArea;
 export default TextArea;

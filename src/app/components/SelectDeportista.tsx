@@ -1,4 +1,5 @@
 
+
 import React, { useState, useCallback, useEffect } from 'react';
 import { Search, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react';
 import { deportistasService, Deportista } from '../../app/services/apiClient';
@@ -57,10 +58,10 @@ export const SelectDeportista: React.FC<SelectDeportistaProps> = ({
       const deportistasConLabels: DeportistaConLabels[] = results.map(
         (deportista) => ({
           ...deportista,
-          // Obtener nombres de relaciones si están cargadas
-          tipo_documento_nombre: deportista.tipo_documento?.nombre,
-          sexo_nombre: deportista.sexo?.nombre,
-          estado_nombre: deportista.estado?.nombre,
+          // Obtener nombres de relaciones - usar IDs para buscar en catálogos
+          tipo_documento_nombre: 'N/A',
+          sexo_nombre: 'N/A',
+          estado_nombre: 'N/A',
         })
       );
 
@@ -105,7 +106,8 @@ export const SelectDeportista: React.FC<SelectDeportistaProps> = ({
   };
 
   // Calcular edad
-  const calcularEdad = (fechaNacimiento: string) => {
+  const calcularEdad = (fechaNacimiento: string | undefined) => {
+    if (!fechaNacimiento) return 'N/A';
     const hoy = new Date();
     const nacimiento = new Date(fechaNacimiento);
     let edad = hoy.getFullYear() - nacimiento.getFullYear();
@@ -217,7 +219,7 @@ export const SelectDeportista: React.FC<SelectDeportistaProps> = ({
                         </span>
                       </td>
                       <td className="px-4 py-3 text-gray-700">
-                        {calcularEdad(deportista.fecha_nacimiento)} años
+                        {calcularEdad(deportista.fecha_nacimiento)} {typeof calcularEdad(deportista.fecha_nacimiento) === 'number' ? 'años' : ''}
                       </td>
                       <td className="px-4 py-3 text-gray-600">
                         {/* AQUÍ SE MUESTRA EL LABEL DEL CATÁLOGO */}
@@ -270,13 +272,15 @@ export const SelectDeportista: React.FC<SelectDeportistaProps> = ({
                                     Fecha de Nacimiento:
                                   </span>
                                   <p className="text-gray-800 font-medium">
-                                    {new Date(
-                                      deportista.fecha_nacimiento
-                                    ).toLocaleDateString('es-CO', {
-                                      year: 'numeric',
-                                      month: 'long',
-                                      day: 'numeric',
-                                    })}
+                                    {deportista.fecha_nacimiento
+                                      ? new Date(
+                                          deportista.fecha_nacimiento
+                                        ).toLocaleDateString('es-CO', {
+                                          year: 'numeric',
+                                          month: 'long',
+                                          day: 'numeric',
+                                        })
+                                      : 'N/A'}
                                   </p>
                                 </div>
                                 <div>

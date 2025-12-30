@@ -1,10 +1,7 @@
-/**
- * Input de fecha reutilizable
- */
+import React from 'react';
+import { Clock } from 'lucide-react';
 
-import { Calendar } from 'lucide-react';
-
-interface InputDateProps {
+interface InputTimeProps {
   label?: string;
   value: string;
   onChange: (value: string) => void; // ← Recibe STRING
@@ -16,7 +13,7 @@ interface InputDateProps {
   max?: string;
 }
 
-export function InputDate({
+export function InputTime({
   label,
   value,
   onChange,
@@ -26,7 +23,7 @@ export function InputDate({
   disabled = false,
   min,
   max,
-}: InputDateProps) {
+}: InputTimeProps) {
   return (
     <div className="w-full">
       {label && (
@@ -38,7 +35,7 @@ export function InputDate({
 
       <div className="relative">
         <input
-          type="date"
+          type="time"
           value={value}
           onChange={(e) => onChange(e.target.value)} 
           placeholder={placeholder}
@@ -58,7 +55,7 @@ export function InputDate({
             }
           `}
         />
-        <Calendar className="w-5 h-5 text-gray-400 absolute left-3 top-3 pointer-events-none" />
+        <Clock className="w-5 h-5 text-gray-400 absolute left-3 top-3 pointer-events-none" />
       </div>
 
       {error && (
@@ -68,4 +65,4 @@ export function InputDate({
   );
 }
 
-export default InputDate;
+export default InputTime;

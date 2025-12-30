@@ -10,16 +10,15 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
-import { AlertCircle, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react';
-import { useHistoriaClinica, useCatalogos, useFormularios } from '../../app/hooks/customHooks';
-import { RespuestaGrupo, FormularioRespuesta } from '../../app/services/apiClient';
+import { toast } from 'sonner';
+import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useCatalogos } from '../contexts/CatalogosContext';
 import {
-  InputField,
-  SelectField,
-  TextAreaField,
-  FormButton,
-} from '../components/form-fields';
+  historiaClinicaService,
+  respuestaGruposService,
+  formularioRespuestasService,
+  Deportista,
+} from '../services/apiClient';
 
 // ============================================================================
 // TIPOS
@@ -29,16 +28,15 @@ interface PasoHistoria {
   numero: number;
   titulo: string;
   descripcion: string;
-  formularioId: string;
   datos: Record<string, any>;
   completado: boolean;
-  grupo?: RespuestaGrupo;
+  grupoId?: string;
 }
 
 interface HistoriaClinicaProps {
-  deportistaId: string;
+  deportista: Deportista;
+  onBack?: () => void;
   onSuccess?: (historiaId: string) => void;
-  onError?: (error: string) => void;
 }
 
 // ============================================================================
@@ -46,28 +44,22 @@ interface HistoriaClinicaProps {
 // ============================================================================
 
 export const HistoriaClinica: React.FC<HistoriaClinicaProps> = ({
-  deportistaId,
+  deportista,
+  onBack,
   onSuccess,
-  onError,
 }) => {
+  const { catalogos, isLoading: catalogosLoading } = useCatalogos();
   const [pasoActual, setPasoActual] = useState(1);
+  const [historiaId, setHistoriaId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
-  const [historiaId, setHistoriaId] = useState<string | null>(null);
 
-  const { tiposCita, estadosCita } = useCatalogos();
-  const { historia, crearHistoria, crearGrupo, guardarRespuestas } =
-    useHistoriaClinica();
-  const { formularios } = useFormularios('historia_clinica');
-
-  // Estados de cada paso
   const [pasos, setPasos] = useState<PasoHistoria[]>([
     {
       numero: 1,
       titulo: 'Motivo de Consulta',
       descripcion: 'Completa el tipo de cita y el motivo de la consulta',
-      formularioId: '',
       datos: {
         tipo_cita_id: '',
         motivo_consulta: '',
@@ -79,7 +71,6 @@ export const HistoriaClinica: React.FC<HistoriaClinicaProps> = ({
       numero: 2,
       titulo: 'Antecedentes Médicos',
       descripcion: 'Registra los antecedentes personales y familiares',
-      formularioId: '',
       datos: {
         antecedentes_personales: '',
         antecedentes_familiares: '',
@@ -94,7 +85,6 @@ export const HistoriaClinica: React.FC<HistoriaClinicaProps> = ({
       numero: 3,
       titulo: 'Lesiones Deportivas',
       descripcion: 'Historial de lesiones deportivas',
-      formularioId: '',
       datos: {
         tiene_lesiones: false,
         descripcion_lesiones: '',
@@ -107,7 +97,6 @@ export const HistoriaClinica: React.FC<HistoriaClinicaProps> = ({
       numero: 4,
       titulo: 'Signos Vitales',
       descripcion: 'Registra los signos vitales del deportista',
-      formularioId: '',
       datos: {
         estatura: '',
         peso: '',
@@ -123,7 +112,6 @@ export const HistoriaClinica: React.FC<HistoriaClinicaProps> = ({
       numero: 5,
       titulo: 'Exploración Física',
       descripcion: 'Resultados de la exploración física',
-      formularioId: '',
       datos: {
         sistema_cardiovascular: '',
         sistema_respiratorio: '',
@@ -137,7 +125,6 @@ export const HistoriaClinica: React.FC<HistoriaClinicaProps> = ({
       numero: 6,
       titulo: 'Diagnóstico',
       descripcion: 'Diagnóstico clínico del deportista',
-      formularioId: '',
       datos: {
         diagnosticos: '',
         plan_tratamiento: '',
@@ -149,7 +136,6 @@ export const HistoriaClinica: React.FC<HistoriaClinicaProps> = ({
       numero: 7,
       titulo: 'Resumen y Seguimiento',
       descripcion: 'Resumen final y plan de seguimiento',
-      formularioId: '',
       datos: {
         plan_seguimiento: '',
         observaciones: '',
@@ -164,30 +150,33 @@ export const HistoriaClinica: React.FC<HistoriaClinicaProps> = ({
     const inicializarHistoria = async () => {
       try {
         setIsLoading(true);
-        const nueva = await crearHistoria({
-          deportista_id: deportistaId,
+        const estadoAbierta = catalogos.estados.find(
+          (e) => e.nombre.toLowerCase() === 'abierta'
+        );
+
+        const nuevaHistoria = await historiaClinicaService.create({
+          deportista_id: deportista.id,
           fecha_apertura: new Date().toISOString().split('T')[0],
-          estado_id: 'uuid-abierta', // Debe obtenerse de catálogo
+          estado_id: estadoAbierta?.id || '',
         });
-        setHistoriaId(nueva.id || '');
+
+        setHistoriaId(nuevaHistoria.id || '');
       } catch (error) {
         const msg = error instanceof Error ? error.message : 'Error al crear historia';
         setErrorMessage(msg);
-        if (onError) onError(msg);
+        console.error('Error inicializando historia:', error);
       } finally {
         setIsLoading(false);
       }
     };
 
-    inicializarHistoria();
-  }, [deportistaId, crearHistoria, onError]);
+    if (!catalogosLoading && catalogos.estados.length > 0) {
+      inicializarHistoria();
+    }
+  }, [deportista.id, catalogosLoading, catalogos.estados]);
 
   // Manejar cambio en un campo del paso actual
-  const handleCampoChange = (
-    numeroPaso: number,
-    nombreCampo: string,
-    valor: any
-  ) => {
+  const handleCampoChange = (numeroPaso: number, campo: string, valor: any) => {
     setPasos(
       pasos.map((paso) =>
         paso.numero === numeroPaso
@@ -195,7 +184,7 @@ export const HistoriaClinica: React.FC<HistoriaClinicaProps> = ({
               ...paso,
               datos: {
                 ...paso.datos,
-                [nombreCampo]: valor,
+                [campo]: valor,
               },
             }
           : paso
@@ -216,29 +205,24 @@ export const HistoriaClinica: React.FC<HistoriaClinicaProps> = ({
       if (!paso) return;
 
       // 1. Crear grupo de respuestas
-      const grupo = await crearGrupo({
+      const grupo = await respuestaGruposService.create({
         historia_clinica_id: historiaId,
-        formulario_id: paso.formularioId || `formulario-paso-${numeroPaso}`,
+        formulario_id: '', // Campo requerido
       });
 
-      // 2. Guardar respuestas individuales
-      const respuestas: FormularioRespuesta[] = Object.entries(
-        paso.datos
-      ).map(([campo, valor]) => ({
-        formulario_id: paso.formularioId || `formulario-paso-${numeroPaso}`,
-        historia_clinica_id: historiaId,
-        campo_id: `campo-${campo}`,
-        valor: String(valor),
-        grupo_id: grupo.id,
-      }));
+      // ✅ VALIDAR que grupo.id existe antes de usarlo
+      if (!grupo.id) {
+        throw new Error('No se pudo crear el grupo de respuestas');
+      }
 
-      await guardarRespuestas(respuestas);
+      // 2. Guardar respuestas del paso (ahora grupo.id es garantizado string)
+      await guardarRespuestas(grupo.id, paso.datos);
 
       // 3. Marcar paso como completado
       setPasos(
         pasos.map((p) =>
           p.numero === numeroPaso
-            ? { ...p, completado: true, grupo }
+            ? { ...p, completado: true, grupoId: grupo.id }
             : p
         )
       );
@@ -254,11 +238,42 @@ export const HistoriaClinica: React.FC<HistoriaClinicaProps> = ({
     }
   };
 
+  // Guardar respuestas del paso actual
+  const guardarRespuestas = async (grupoId: string, data: Record<string, any>) => {
+    try {
+      // Formatear respuestas según el schema del backend
+      const respuestasFormato = Object.entries(data).map(([campo, valor]) => ({
+        campo,
+        valor: String(valor),
+      }));
+
+      // Enviar al backend
+      await formularioRespuestasService.crearMultiples({
+        grupo_id: grupoId,
+        respuestas: respuestasFormato,
+      });
+
+      toast.success('Respuestas guardadas correctamente');
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Error al guardar respuestas';
+      toast.error(msg);
+      console.error('Error guardando respuestas:', error);
+      throw error;
+    }
+  };
+
   // Ir al siguiente paso
   const irAlSiguiente = async () => {
     if (pasoActual < 7) {
       await guardarPaso(pasoActual);
       setPasoActual(pasoActual + 1);
+    }
+  };
+
+  // Volver al paso anterior
+  const irAlAnterior = () => {
+    if (pasoActual > 1) {
+      setPasoActual(pasoActual - 1);
     }
   };
 
@@ -269,14 +284,17 @@ export const HistoriaClinica: React.FC<HistoriaClinicaProps> = ({
       await guardarPaso(pasoActual);
 
       setSuccessMessage('✅ Historia clínica completada exitosamente');
-      if (onSuccess && historiaId) {
-        onSuccess(historiaId);
-      }
-      setTimeout(() => setSuccessMessage(''), 3000);
+      toast.success('Historia clínica completada');
+
+      setTimeout(() => {
+        if (onSuccess && historiaId) {
+          onSuccess(historiaId);
+        }
+      }, 1500);
     } catch (error) {
-      const msg = error instanceof Error ? error.message : 'Error al completar';
+      const msg = error instanceof Error ? error.message : 'Error al completar historia';
       setErrorMessage(msg);
-      if (onError) onError(msg);
+      toast.error(msg);
     } finally {
       setIsLoading(false);
     }
@@ -285,6 +303,15 @@ export const HistoriaClinica: React.FC<HistoriaClinicaProps> = ({
   const pasoActualData = pasos.find((p) => p.numero === pasoActual);
   if (!pasoActualData) return null;
 
+  if (catalogosLoading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <span className="ml-4">Cargando...</span>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow-lg">
       {/* Encabezado */}
@@ -292,9 +319,10 @@ export const HistoriaClinica: React.FC<HistoriaClinicaProps> = ({
         <h1 className="text-3xl font-bold text-gray-800">
           Historia Clínica (Paso {pasoActual} de 7)
         </h1>
-        <p className="text-gray-600 mt-2">
-          {pasoActualData.descripcion}
+        <p className="text-gray-600 mt-1">
+          {deportista.nombres} {deportista.apellidos}
         </p>
+        <p className="text-gray-600 mt-2">{pasoActualData.descripcion}</p>
       </div>
 
       {/* Mensajes */}
@@ -319,13 +347,14 @@ export const HistoriaClinica: React.FC<HistoriaClinicaProps> = ({
             <button
               key={paso.numero}
               onClick={() => setPasoActual(paso.numero)}
+              disabled={isLoading}
               className={`flex items-center justify-center w-10 h-10 rounded-full font-bold transition ${
                 paso.numero === pasoActual
                   ? 'bg-blue-600 text-white'
                   : paso.completado
                   ? 'bg-green-600 text-white'
                   : 'bg-gray-300 text-gray-700'
-              }`}
+              } disabled:opacity-50`}
             >
               {paso.completado ? '✓' : paso.numero}
             </button>
@@ -355,13 +384,11 @@ export const HistoriaClinica: React.FC<HistoriaClinicaProps> = ({
                 </label>
                 <select
                   value={pasoActualData.datos.tipo_cita_id}
-                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
-                    handleCampoChange(1, 'tipo_cita_id', e.target.value)
-                  }
+                  onChange={(e) => handleCampoChange(1, 'tipo_cita_id', e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
                   <option value="">Selecciona un tipo...</option>
-                  {tiposCita.map((item) => (
+                  {catalogos.tiposCita?.map((item) => (
                     <option key={item.id} value={item.id}>
                       {item.nombre}
                     </option>
@@ -369,89 +396,117 @@ export const HistoriaClinica: React.FC<HistoriaClinicaProps> = ({
                 </select>
               </div>
 
-              <TextAreaField
-                label="Motivo de Consulta"
-                placeholder="Describe el motivo de la consulta..."
-                value={pasoActualData.datos.motivo_consulta}
-                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                  handleCampoChange(1, 'motivo_consulta', e.target.value)
-                }
-              />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Motivo de Consulta
+                </label>
+                <textarea
+                  value={pasoActualData.datos.motivo_consulta}
+                  onChange={(e) => handleCampoChange(1, 'motivo_consulta', e.target.value)}
+                  placeholder="Describe el motivo de la consulta..."
+                  rows={4}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
 
-              <TextAreaField
-                label="Enfermedad Actual"
-                placeholder="Describe los síntomas actuales..."
-                value={pasoActualData.datos.enfermedad_actual}
-                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                  handleCampoChange(1, 'enfermedad_actual', e.target.value)
-                }
-              />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Enfermedad Actual
+                </label>
+                <textarea
+                  value={pasoActualData.datos.enfermedad_actual}
+                  onChange={(e) => handleCampoChange(1, 'enfermedad_actual', e.target.value)}
+                  placeholder="Describe los síntomas actuales..."
+                  rows={4}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
             </div>
           )}
 
           {/* PASO 2: Antecedentes */}
           {pasoActual === 2 && (
             <div className="space-y-4">
-              <TextAreaField
-                label="Antecedentes Personales"
-                placeholder="Enfermedades, cirugías, medicamentos..."
-                value={pasoActualData.datos.antecedentes_personales}
-                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                  handleCampoChange(2, 'antecedentes_personales', e.target.value)
-                }
-              />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Antecedentes Personales
+                </label>
+                <textarea
+                  value={pasoActualData.datos.antecedentes_personales}
+                  onChange={(e) => handleCampoChange(2, 'antecedentes_personales', e.target.value)}
+                  placeholder="Enfermedades, cirugías, medicamentos..."
+                  rows={4}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
 
-              <TextAreaField
-                label="Antecedentes Familiares"
-                placeholder="Enfermedades hereditarias..."
-                value={pasoActualData.datos.antecedentes_familiares}
-                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                  handleCampoChange(2, 'antecedentes_familiares', e.target.value)
-                }
-              />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Antecedentes Familiares
+                </label>
+                <textarea
+                  value={pasoActualData.datos.antecedentes_familiares}
+                  onChange={(e) => handleCampoChange(2, 'antecedentes_familiares', e.target.value)}
+                  placeholder="Enfermedades hereditarias..."
+                  rows={4}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
 
               <div className="flex items-center gap-3">
                 <input
                   type="checkbox"
+                  id="tiene_alergias"
                   checked={pasoActualData.datos.tiene_alergias}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                    handleCampoChange(2, 'tiene_alergias', e.target.checked)
-                  }
+                  onChange={(e) => handleCampoChange(2, 'tiene_alergias', e.target.checked)}
+                  className="w-4 h-4 rounded"
                 />
-                <label>¿Tiene alergias?</label>
+                <label htmlFor="tiene_alergias" className="text-sm font-medium">
+                  ¿Tiene alergias?
+                </label>
               </div>
 
               {pasoActualData.datos.tiene_alergias && (
-                <InputField
-                  label="Alergias"
-                  placeholder="Describe las alergias..."
-                  value={pasoActualData.datos.alergias}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                    handleCampoChange(2, 'alergias', e.target.value)
-                  }
-                />
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Describe las Alergias
+                  </label>
+                  <input
+                    type="text"
+                    value={pasoActualData.datos.alergias}
+                    onChange={(e) => handleCampoChange(2, 'alergias', e.target.value)}
+                    placeholder="Ej: Penicilina, cacahuates..."
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
               )}
 
               <div className="flex items-center gap-3">
                 <input
                   type="checkbox"
+                  id="cirugias_previas"
                   checked={pasoActualData.datos.cirugias_previas}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                    handleCampoChange(2, 'cirugias_previas', e.target.checked)
-                  }
+                  onChange={(e) => handleCampoChange(2, 'cirugias_previas', e.target.checked)}
+                  className="w-4 h-4 rounded"
                 />
-                <label>¿Cirugías previas?</label>
+                <label htmlFor="cirugias_previas" className="text-sm font-medium">
+                  ¿Cirugías previas?
+                </label>
               </div>
 
               {pasoActualData.datos.cirugias_previas && (
-                <TextAreaField
-                  label="Detalle de Cirugías"
-                  placeholder="Describe las cirugías..."
-                  value={pasoActualData.datos.detalle_cirugias}
-                  onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                    handleCampoChange(2, 'detalle_cirugias', e.target.value)
-                  }
-                />
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Detalle de Cirugías
+                  </label>
+                  <textarea
+                    value={pasoActualData.datos.detalle_cirugias}
+                    onChange={(e) => handleCampoChange(2, 'detalle_cirugias', e.target.value)}
+                    placeholder="Describe las cirugías..."
+                    rows={4}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
               )}
             </div>
           )}
@@ -462,207 +517,303 @@ export const HistoriaClinica: React.FC<HistoriaClinicaProps> = ({
               <div className="flex items-center gap-3">
                 <input
                   type="checkbox"
+                  id="tiene_lesiones"
                   checked={pasoActualData.datos.tiene_lesiones}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                    handleCampoChange(3, 'tiene_lesiones', e.target.checked)
-                  }
+                  onChange={(e) => handleCampoChange(3, 'tiene_lesiones', e.target.checked)}
+                  className="w-4 h-4 rounded"
                 />
-                <label>¿Tiene lesiones deportivas?</label>
+                <label htmlFor="tiene_lesiones" className="text-sm font-medium">
+                  ¿Tiene lesiones deportivas?
+                </label>
               </div>
 
               {pasoActualData.datos.tiene_lesiones && (
                 <>
-                  <TextAreaField
-                    label="Descripción de Lesiones"
-                    placeholder="Describe las lesiones..."
-                    value={pasoActualData.datos.descripcion_lesiones}
-                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                      handleCampoChange(3, 'descripcion_lesiones', e.target.value)
-                    }
-                  />
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Descripción de Lesiones
+                    </label>
+                    <textarea
+                      value={pasoActualData.datos.descripcion_lesiones}
+                      onChange={(e) =>
+                        handleCampoChange(3, 'descripcion_lesiones', e.target.value)
+                      }
+                      placeholder="Describe las lesiones..."
+                      rows={4}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
 
-                  <InputField
-                    type="date"
-                    label="Fecha de la Última Lesión"
-                    value={pasoActualData.datos.fecha_ultima_lesion}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                      handleCampoChange(3, 'fecha_ultima_lesion', e.target.value)
-                    }
-                  />
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Fecha de la Última Lesión
+                    </label>
+                    <input
+                      type="date"
+                      value={pasoActualData.datos.fecha_ultima_lesion}
+                      onChange={(e) =>
+                        handleCampoChange(3, 'fecha_ultima_lesion', e.target.value)
+                      }
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
                 </>
               )}
 
-              <TextAreaField
-                label="Medicación Actual"
-                placeholder="Medicamentos que está tomando..."
-                value={pasoActualData.datos.medicacion_actual}
-                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                  handleCampoChange(3, 'medicacion_actual', e.target.value)
-                }
-              />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Medicación Actual
+                </label>
+                <textarea
+                  value={pasoActualData.datos.medicacion_actual}
+                  onChange={(e) => handleCampoChange(3, 'medicacion_actual', e.target.value)}
+                  placeholder="Medicamentos que está tomando..."
+                  rows={4}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
             </div>
           )}
 
           {/* PASO 4: Signos Vitales */}
           {pasoActual === 4 && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <InputField
-                type="number"
-                label="Estatura (cm)"
-                value={pasoActualData.datos.estatura}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  handleCampoChange(4, 'estatura', e.target.value)
-                }
-              />
-              <InputField
-                type="number"
-                label="Peso (kg)"
-                value={pasoActualData.datos.peso}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleCampoChange(4, 'peso', e.target.value)}
-              />
-              <InputField
-                type="number"
-                label="Frecuencia Cardíaca (bpm)"
-                value={pasoActualData.datos.frecuencia_cardiaca}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  handleCampoChange(4, 'frecuencia_cardiaca', e.target.value)
-                }
-              />
-              <InputField
-                type="text"
-                label="Presión Arterial (mmHg)"
-                placeholder="120/80"
-                value={pasoActualData.datos.presion_arterial}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  handleCampoChange(4, 'presion_arterial', e.target.value)
-                }
-              />
-              <InputField
-                type="number"
-                label="Frecuencia Respiratoria (rpm)"
-                value={pasoActualData.datos.frecuencia_respiratoria}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  handleCampoChange(4, 'frecuencia_respiratoria', e.target.value)
-                }
-              />
-              <InputField
-                type="number"
-                label="Temperatura (°C)"
-                value={pasoActualData.datos.temperatura}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  handleCampoChange(4, 'temperatura', e.target.value)
-                }
-              />
-              <InputField
-                type="number"
-                label="Saturación O2 (%)"
-                value={pasoActualData.datos.saturacion_oxigeno}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  handleCampoChange(4, 'saturacion_oxigeno', e.target.value)
-                }
-              />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Estatura (cm)
+                </label>
+                <input
+                  type="number"
+                  value={pasoActualData.datos.estatura}
+                  onChange={(e) => handleCampoChange(4, 'estatura', e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Peso (kg)
+                </label>
+                <input
+                  type="number"
+                  value={pasoActualData.datos.peso}
+                  onChange={(e) => handleCampoChange(4, 'peso', e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Frecuencia Cardíaca (bpm)
+                </label>
+                <input
+                  type="number"
+                  value={pasoActualData.datos.frecuencia_cardiaca}
+                  onChange={(e) => handleCampoChange(4, 'frecuencia_cardiaca', e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Presión Arterial (mmHg)
+                </label>
+                <input
+                  type="text"
+                  value={pasoActualData.datos.presion_arterial}
+                  onChange={(e) => handleCampoChange(4, 'presion_arterial', e.target.value)}
+                  placeholder="120/80"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Frecuencia Respiratoria (rpm)
+                </label>
+                <input
+                  type="number"
+                  value={pasoActualData.datos.frecuencia_respiratoria}
+                  onChange={(e) =>
+                    handleCampoChange(4, 'frecuencia_respiratoria', e.target.value)
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Temperatura (°C)
+                </label>
+                <input
+                  type="number"
+                  value={pasoActualData.datos.temperatura}
+                  onChange={(e) => handleCampoChange(4, 'temperatura', e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Saturación O₂ (%)
+                </label>
+                <input
+                  type="number"
+                  value={pasoActualData.datos.saturacion_oxigeno}
+                  onChange={(e) => handleCampoChange(4, 'saturacion_oxigeno', e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
             </div>
           )}
 
           {/* PASO 5: Exploración */}
           {pasoActual === 5 && (
             <div className="space-y-4">
-              <TextAreaField
-                label="Sistema Cardiovascular"
-                placeholder="Resultados de la exploración cardiovascular..."
-                value={pasoActualData.datos.sistema_cardiovascular}
-                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                  handleCampoChange(5, 'sistema_cardiovascular', e.target.value)
-                }
-              />
-              <TextAreaField
-                label="Sistema Respiratorio"
-                placeholder="Resultados de la exploración respiratoria..."
-                value={pasoActualData.datos.sistema_respiratorio}
-                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                  handleCampoChange(5, 'sistema_respiratorio', e.target.value)
-                }
-              />
-              <TextAreaField
-                label="Sistema Neurológico"
-                placeholder="Resultados de la exploración neurológica..."
-                value={pasoActualData.datos.sistema_neurologico}
-                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                  handleCampoChange(5, 'sistema_neurologico', e.target.value)
-                }
-              />
-              <TextAreaField
-                label="Sistema Musculoesquelético"
-                placeholder="Resultados de la exploración musculoesquelética..."
-                value={pasoActualData.datos.sistema_musculoesqueletico}
-                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                  handleCampoChange(5, 'sistema_musculoesqueletico', e.target.value)
-                }
-              />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Sistema Cardiovascular
+                </label>
+                <textarea
+                  value={pasoActualData.datos.sistema_cardiovascular}
+                  onChange={(e) => handleCampoChange(5, 'sistema_cardiovascular', e.target.value)}
+                  placeholder="Resultados de la exploración cardiovascular..."
+                  rows={4}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Sistema Respiratorio
+                </label>
+                <textarea
+                  value={pasoActualData.datos.sistema_respiratorio}
+                  onChange={(e) => handleCampoChange(5, 'sistema_respiratorio', e.target.value)}
+                  placeholder="Resultados de la exploración respiratoria..."
+                  rows={4}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Sistema Neurológico
+                </label>
+                <textarea
+                  value={pasoActualData.datos.sistema_neurologico}
+                  onChange={(e) => handleCampoChange(5, 'sistema_neurologico', e.target.value)}
+                  placeholder="Resultados de la exploración neurológica..."
+                  rows={4}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Sistema Musculoesquelético
+                </label>
+                <textarea
+                  value={pasoActualData.datos.sistema_musculoesqueletico}
+                  onChange={(e) =>
+                    handleCampoChange(5, 'sistema_musculoesqueletico', e.target.value)
+                  }
+                  placeholder="Resultados de la exploración musculoesquelética..."
+                  rows={4}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
             </div>
           )}
 
           {/* PASO 6: Diagnóstico */}
           {pasoActual === 6 && (
             <div className="space-y-4">
-              <TextAreaField
-                label="Diagnósticos"
-                placeholder="Diagnósticos clínicos..."
-                value={pasoActualData.datos.diagnosticos}
-                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                  handleCampoChange(6, 'diagnosticos', e.target.value)
-                }
-              />
-              <TextAreaField
-                label="Plan de Tratamiento"
-                placeholder="Medicamentos, terapias, etc..."
-                value={pasoActualData.datos.plan_tratamiento}
-                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                  handleCampoChange(6, 'plan_tratamiento', e.target.value)
-                }
-              />
-              <TextAreaField
-                label="Recomendaciones de Entrenamiento"
-                placeholder="Restricciones, adaptaciones, etc..."
-                value={pasoActualData.datos.recomendaciones_entrenamiento}
-                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                  handleCampoChange(
-                    6,
-                    'recomendaciones_entrenamiento',
-                    e.target.value
-                  )
-                }
-              />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Diagnósticos
+                </label>
+                <textarea
+                  value={pasoActualData.datos.diagnosticos}
+                  onChange={(e) => handleCampoChange(6, 'diagnosticos', e.target.value)}
+                  placeholder="Diagnósticos clínicos..."
+                  rows={4}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Plan de Tratamiento
+                </label>
+                <textarea
+                  value={pasoActualData.datos.plan_tratamiento}
+                  onChange={(e) => handleCampoChange(6, 'plan_tratamiento', e.target.value)}
+                  placeholder="Medicamentos, terapias, etc..."
+                  rows={4}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Recomendaciones de Entrenamiento
+                </label>
+                <textarea
+                  value={pasoActualData.datos.recomendaciones_entrenamiento}
+                  onChange={(e) =>
+                    handleCampoChange(6, 'recomendaciones_entrenamiento', e.target.value)
+                  }
+                  placeholder="Restricciones, adaptaciones, etc..."
+                  rows={4}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
             </div>
           )}
 
           {/* PASO 7: Resumen */}
           {pasoActual === 7 && (
             <div className="space-y-4">
-              <TextAreaField
-                label="Plan de Seguimiento"
-                placeholder="Próximos controles, evaluaciones..."
-                value={pasoActualData.datos.plan_seguimiento}
-                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                  handleCampoChange(7, 'plan_seguimiento', e.target.value)
-                }
-              />
-              <InputField
-                type="date"
-                label="Fecha del Próximo Control"
-                value={pasoActualData.datos.fecha_proximo_control}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  handleCampoChange(7, 'fecha_proximo_control', e.target.value)
-                }
-              />
-              <TextAreaField
-                label="Observaciones Generales"
-                placeholder="Notas adicionales..."
-                value={pasoActualData.datos.observaciones}
-                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                  handleCampoChange(7, 'observaciones', e.target.value)
-                }
-              />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Plan de Seguimiento
+                </label>
+                <textarea
+                  value={pasoActualData.datos.plan_seguimiento}
+                  onChange={(e) => handleCampoChange(7, 'plan_seguimiento', e.target.value)}
+                  placeholder="Próximos controles, evaluaciones..."
+                  rows={4}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Fecha del Próximo Control
+                </label>
+                <input
+                  type="date"
+                  value={pasoActualData.datos.fecha_proximo_control}
+                  onChange={(e) =>
+                    handleCampoChange(7, 'fecha_proximo_control', e.target.value)
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Observaciones Generales
+                </label>
+                <textarea
+                  value={pasoActualData.datos.observaciones}
+                  onChange={(e) => handleCampoChange(7, 'observaciones', e.target.value)}
+                  placeholder="Notas adicionales..."
+                  rows={4}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
             </div>
           )}
         </div>
@@ -671,21 +822,38 @@ export const HistoriaClinica: React.FC<HistoriaClinicaProps> = ({
       {/* Botones de navegación */}
       <div className="flex gap-4 justify-between">
         <button
-          onClick={() => setPasoActual(Math.max(1, pasoActual - 1))}
+          onClick={irAlAnterior}
           disabled={pasoActual === 1 || isLoading}
-          className="px-6 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition disabled:opacity-50"
+          className="px-6 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition disabled:opacity-50 flex items-center gap-2"
         >
-          ← Anterior
+          <ChevronLeft className="w-4 h-4" />
+          Anterior
+        </button>
+
+        <button
+          onClick={onBack}
+          className="px-6 py-2 bg-gray-400 text-white rounded-lg hover:bg-gray-500 transition"
+        >
+          Salir
         </button>
 
         {pasoActual < 7 ? (
-          <FormButton onClick={irAlSiguiente} disabled={isLoading}>
-            {isLoading ? 'Guardando...' : 'Siguiente →'}
-          </FormButton>
+          <button
+            onClick={irAlSiguiente}
+            disabled={isLoading}
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:bg-blue-400 flex items-center gap-2"
+          >
+            {isLoading ? 'Guardando...' : 'Siguiente'}
+            <ChevronRight className="w-4 h-4" />
+          </button>
         ) : (
-          <FormButton onClick={completarHistoria} disabled={isLoading}>
+          <button
+            onClick={completarHistoria}
+            disabled={isLoading}
+            className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition disabled:bg-green-400"
+          >
             {isLoading ? 'Completando...' : '✓ Completar Historia'}
-          </FormButton>
+          </button>
         )}
       </div>
     </div>

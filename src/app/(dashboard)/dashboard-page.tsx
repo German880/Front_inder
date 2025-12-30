@@ -16,6 +16,7 @@ import {
   ArrowRight,
   Clock,
 } from 'lucide-react';
+import { deportistasService, historiaClinicaService, citasService, type Deportista, type HistoriaClinica, type Cita } from '../services';
 
 interface DashboardStats {
   totalDeportistas: number;
@@ -53,88 +54,64 @@ export default function DashboardPage() {
     cargarDatos();
   }, []);
 
+  // Cargar usuario desde localStorage
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('user');
+      if (raw) setUser(JSON.parse(raw));
+    } catch {
+      // ignore
+    }
+  }, []);
+
   const cargarDatos = async () => {
     try {
       setIsLoading(true);
 
-      // Obtener usuario del localStorage
-      const userData = localStorage.getItem('user');
-      if (userData) {
-        setUser(JSON.parse(userData));
-      }
+      const deportistasRes = await deportistasService.getAll(1, 100);
+      const historiasRes = await historiaClinicaService.getAll(1, 100);
+      const citasRes = await citasService.getAll();
 
-      // TODO: Reemplazar con llamadas a API reales
-      // Por ahora usamos datos de ejemplo
-      const datosEjemplo: DashboardStats = {
-        totalDeportistas: 45,
-        historiasCinicas: 120,
-        citasProximas: 8,
-        archivosSubidos: 342,
-        actividadReciente: [
-          {
-            id: '1',
-            tipo: 'cita',
-            descripcion: 'Nueva cita creada - Juan Pérez',
-            fecha: 'Hace 2 horas',
-            icon: <Calendar className="w-5 h-5" />,
-            color: 'bg-blue-100 text-blue-700',
-          },
-          {
-            id: '2',
-            tipo: 'historia',
-            descripcion: 'Historia clínica completada - María García',
-            fecha: 'Hace 4 horas',
-            icon: <FileText className="w-5 h-5" />,
-            color: 'bg-green-100 text-green-700',
-          },
-          {
-            id: '3',
-            tipo: 'archivo',
-            descripcion: 'Archivo subido - Resonancia.pdf',
-            fecha: 'Hace 6 horas',
-            icon: <Activity className="w-5 h-5" />,
-            color: 'bg-purple-100 text-purple-700',
-          },
-          {
-            id: '4',
-            tipo: 'deportista',
-            descripcion: 'Nuevo deportista registrado - Carlos López',
-            fecha: 'Ayer',
-            icon: <Users className="w-5 h-5" />,
-            color: 'bg-orange-100 text-orange-700',
-          },
-        ],
-        proximasActividades: [
-          {
-            id: '1',
-            tipo: 'cita',
-            descripcion: 'Cita con Juan Pérez - Evaluación física',
-            fecha: 'Hoy 14:30',
-            icon: <Clock className="w-5 h-5" />,
-            color: 'bg-blue-100 text-blue-700',
-          },
-          {
-            id: '2',
-            tipo: 'cita',
-            descripcion: 'Cita con Ana Martínez - Seguimiento',
-            fecha: 'Mañana 10:00',
-            icon: <Clock className="w-5 h-5" />,
-            color: 'bg-blue-100 text-blue-700',
-          },
-          {
-            id: '3',
-            tipo: 'cita',
-            descripcion: 'Cita con Pedro González - Reevaluación',
-            fecha: 'Mañana 15:00',
-            icon: <Clock className="w-5 h-5" />,
-            color: 'bg-blue-100 text-blue-700',
-          },
-        ],
+      // Helpers de normalización seguros para distintos formatos
+      const toArray = <T,>(res: unknown): T[] => {
+        const r = res as any;
+        if (Array.isArray(r)) return r;
+        if (Array.isArray(r?.items)) return r.items;     // PaginatedResponse típico
+        if (Array.isArray(r?.results)) return r.results; // Alternativa común
+        if (Array.isArray(r?.data)) return r.data;       // ApiResponse con data[]
+        return [];
       };
 
-      setStats(datosEjemplo);
+      const deportistas = toArray<Deportista>(deportistasRes);
+      const historias = toArray<HistoriaClinica>(historiasRes);
+      const citas = toArray<Cita>(citasRes);
+
+      const datosReales: DashboardStats = {
+        totalDeportistas: deportistas.length,
+        historiasCinicas: historias.length,
+        citasProximas: citas.filter((c: any) => (c.estado ?? c.status) === 'programada').length,
+        archivosSubidos: 0,
+        actividadReciente: historias.slice(0, 5).map((h: any) => ({
+          id: h.id,
+          tipo: 'historia',
+          descripcion: 'Historia clínica creada',
+          fecha: new Date(h.fecha_apertura ?? h.createdAt ?? Date.now()).toLocaleDateString(),
+          icon: <FileText className="w-5 h-5" />,
+          color: 'bg-green-100 text-green-700',
+        })),
+        proximasActividades: citas.slice(0, 5).map((c: any) => ({
+          id: c.id,
+          tipo: 'cita',
+          descripcion: 'Cita programada',
+          fecha: new Date(c.fecha ?? c.fechaHora ?? c.start ?? Date.now()).toLocaleDateString(),
+          icon: <Calendar className="w-5 h-5" />,
+          color: 'bg-blue-100 text-blue-700',
+        })),
+      };
+
+      setStats(datosReales);
     } catch (error) {
-      console.error('Error cargando datos:', error);
+      console.error('Error:', error);
     } finally {
       setIsLoading(false);
     }

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import {
   Upload,
   Download,
@@ -9,12 +10,9 @@ import {
   AlertCircle,
   CheckCircle2,
 } from 'lucide-react';
-import { archivosService, ArchivoCinico } from '../../app/services/apiClient';
-import {
-  FormButton,
-  FormAlert,
-  FormSection,
-} from '../components/form-fields';
+import { archivosService, ArchivoCinico } from '../services/apiClient';
+import { respuestaGruposService } from '../services/apiClient';
+import { api } from '../services/apiClient';
 
 // ============================================================================
 // TIPOS
@@ -56,7 +54,7 @@ const TAMAÑO_MAX = 10 * 1024 * 1024; // 10MB
 export const ArchivosManager: React.FC<ArchivosManagerProps> = ({
   historiaClinicaId,
   formularioId,
-  grupoId,
+  grupoId: initialGrupoId,
 }) => {
   const [archivos, setArchivos] = useState<ArchivoConMeta[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -66,6 +64,7 @@ export const ArchivosManager: React.FC<ArchivosManagerProps> = ({
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>(
     {}
   );
+  const [grupoId, setGrupoId] = useState<string | undefined>(initialGrupoId);
 
   // Cargar archivos al montar
   useEffect(() => {
@@ -79,7 +78,10 @@ export const ArchivosManager: React.FC<ArchivosManagerProps> = ({
       const data = await archivosService.getByHistoriaId(historiaClinicaId);
 
       const archivosConMeta: ArchivoConMeta[] = data.map((archivo) => {
-        const tipo = TIPOS_PERMITIDOS[archivo.tipo_archivo as keyof typeof TIPOS_PERMITIDOS] || 'Archivo';
+        const tipo =
+          TIPOS_PERMITIDOS[
+            archivo.tipo_archivo as keyof typeof TIPOS_PERMITIDOS
+          ] || 'Archivo';
         let icono = <File className="w-5 h-5" />;
 
         if (archivo.tipo_archivo?.startsWith('image/')) {
@@ -102,6 +104,7 @@ export const ArchivosManager: React.FC<ArchivosManagerProps> = ({
     } catch (error) {
       console.error('Error cargando archivos:', error);
       setErrorMessage('Error al cargar archivos');
+      toast.error('Error al cargar archivos');
     } finally {
       setIsLoading(false);
     }
@@ -128,20 +131,62 @@ export const ArchivosManager: React.FC<ArchivosManagerProps> = ({
 
   // Manejar subida de archivo
   const handleSubirArchivo = async (file: File) => {
+    // Validar historia clínica
+    if (!historiaClinicaId) {
+      toast.error('Historia clínica no especificada');
+      setErrorMessage('Historia clínica no especificada');
+      return;
+    }
+
+    // Validar archivo
     const error = validarArchivo(file);
     if (error) {
       setErrorMessage(error);
+      toast.error(error);
       return;
     }
 
     try {
       setIsLoading(true);
       setErrorMessage('');
+      setSuccessMessage('');
 
+      // Si no hay grupo, crear uno primero
+      let idGrupo = grupoId;
+      if (!idGrupo && formularioId) {
+        try {
+          // RespuestaGrupo solo requiere: historia_clinica_id y formulario_id
+          const nuevoGrupo = await respuestaGruposService.create({
+            historia_clinica_id: historiaClinicaId,
+            formulario_id: formularioId,
+          });
+          idGrupo = nuevoGrupo.id;
+          setGrupoId(idGrupo);
+        } catch (err) {
+          console.error('Error al crear grupo:', err);
+          toast.error('Error al crear grupo de respuestas');
+          return;
+        }
+      }
+
+      // Crear FormData con todos los campos
+      const formDataToSend = new FormData();
+      formDataToSend.append('historia_clinica_id', historiaClinicaId);
+
+      if (formularioId) {
+        formDataToSend.append('formulario_id', formularioId);
+      }
+
+      if (idGrupo) {
+        formDataToSend.append('grupo_id', idGrupo);
+      }
+
+      formDataToSend.append('archivo', file);
+
+      // Simular progreso mientras se sube
       const fileId = `${file.name}-${Date.now()}`;
       setUploadProgress({ ...uploadProgress, [fileId]: 0 });
 
-      // Simular progreso
       const intervalo = setInterval(() => {
         setUploadProgress((prev) => {
           const newProgress = { ...prev };
@@ -152,12 +197,11 @@ export const ArchivosManager: React.FC<ArchivosManagerProps> = ({
         });
       }, 300);
 
-      // Subir archivo
-      const nuevoArchivo = await archivosService.upload({
-        historia_clinica_id: historiaClinicaId,
-        formulario_id: formularioId,
-        grupo_id: grupoId,
-        archivo: file,
+      // Hacer upload directo con FormData
+      const response = await api.post('/archivos_clinicos', formDataToSend, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
       });
 
       clearInterval(intervalo);
@@ -168,6 +212,7 @@ export const ArchivosManager: React.FC<ArchivosManagerProps> = ({
       });
 
       setSuccessMessage(`✅ Archivo "${file.name}" subido exitosamente`);
+      toast.success(`Archivo "${file.name}" subido exitosamente`);
 
       // Recargar archivos
       setTimeout(() => {
@@ -175,10 +220,11 @@ export const ArchivosManager: React.FC<ArchivosManagerProps> = ({
         setUploadProgress({});
         setSuccessMessage('');
       }, 1500);
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : 'Error al subir archivo';
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Error al subir archivo';
       setErrorMessage(msg);
-      console.error('Error:', error);
+      toast.error(msg);
+      console.error('Error subiendo archivo:', err);
     } finally {
       setIsLoading(false);
     }
@@ -187,15 +233,19 @@ export const ArchivosManager: React.FC<ArchivosManagerProps> = ({
   // Manejar drag & drop
   const handleDragOver = (e: React.DragEvent<HTMLLabelElement>) => {
     e.preventDefault();
+    e.stopPropagation();
     setIsDragOver(true);
   };
 
-  const handleDragLeave = () => {
+  const handleDragLeave = (e: React.DragEvent<HTMLLabelElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
     setIsDragOver(false);
   };
 
   const handleDrop = (e: React.DragEvent<HTMLLabelElement>) => {
     e.preventDefault();
+    e.stopPropagation();
     setIsDragOver(false);
 
     const files = Array.from(e.dataTransfer.files);
@@ -232,10 +282,10 @@ export const ArchivosManager: React.FC<ArchivosManagerProps> = ({
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
 
-      setSuccessMessage('✅ Archivo descargado');
-      setTimeout(() => setSuccessMessage(''), 2000);
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : 'Error al descargar';
+      toast.success('Archivo descargado');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Error al descargar';
+      toast.error(msg);
       setErrorMessage(msg);
     } finally {
       setIsLoading(false);
@@ -258,13 +308,12 @@ export const ArchivosManager: React.FC<ArchivosManagerProps> = ({
 
       await archivosService.delete(archivoId);
 
-      setSuccessMessage('✅ Archivo eliminado');
+      toast.success('Archivo eliminado');
       cargarArchivos();
-
-      setTimeout(() => setSuccessMessage(''), 2000);
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : 'Error al eliminar';
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Error al eliminar';
       setErrorMessage(msg);
+      toast.error(msg);
     } finally {
       setIsLoading(false);
     }
@@ -272,7 +321,7 @@ export const ArchivosManager: React.FC<ArchivosManagerProps> = ({
 
   return (
     <div className="w-full">
-      <FormSection>
+      <div className="bg-white rounded-lg">
         {/* Mensajes */}
         {successMessage && (
           <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg flex items-start gap-3">
@@ -411,11 +460,11 @@ export const ArchivosManager: React.FC<ArchivosManagerProps> = ({
         <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
           <p className="text-sm text-blue-800">
             <strong>Nota:</strong> Los archivos subidos se asocian a la historia
-            clínica actual y serán accesibles desde cualquier lugar dentro del
-            sistema.
+            clínica actual {formularioId && grupoId && 'y al grupo de respuestas'}{' '}
+            y serán accesibles desde cualquier lugar dentro del sistema.
           </p>
         </div>
-      </FormSection>
+      </div>
     </div>
   );
 };

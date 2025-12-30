@@ -1,5 +1,7 @@
+'use client';
+
 import React, { useState, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
+import { toast } from 'sonner';
 import {
   Calendar,
   Clock,
@@ -11,171 +13,217 @@ import {
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
-import {
-  citasService,
-  Cita,
-  Deportista,
-} from '../../app/services/apiClient';
-import { useCitas, useCatalogos } from '../../app/hooks/customHooks';
-import {
-  InputField,
-  SelectField,
-  TextAreaField,
-  FormButton,
-  FormAlert,
-  FormGrid,
-  FormSection,
-} from '../components/form-fields';
+import { citasService, Cita, Deportista } from '../services/apiClient';
+import { useCatalogos } from '../contexts/CatalogosContext';
+import { InputDate } from './form-fields/InputDate';
+import { InputTime } from './form-fields/InputTime';
+import { SelectCatalogo } from './form-fields/SelectCatalogo';
+import { TextArea } from './form-fields/TextArea';
 
 // ============================================================================
 // TIPOS
 // ============================================================================
 
-interface CitasManagerProps {
-  deportista: Deportista;
-  onSuccess?: (cita: Cita) => void;
-}
-
-interface FormCita {
+type CitaForm = {
+  deportista_id: string;
   fecha: string;
   hora: string;
-  tipo_cita_id: string; // FK a catalogo_items
-  estado_cita_id: string; // FK a catalogo_items
+  tipo_cita_id: string;
+  estado_cita_id: string;
   observaciones?: string;
+};
+
+interface CitasManagerProps {
+  deportista?: Deportista;
+  onSuccess?: (cita: Cita) => void;
 }
 
 // ============================================================================
 // COMPONENTE
 // ============================================================================
 
-export const CitasManager: React.FC<CitasManagerProps> = ({
-  deportista,
-  onSuccess,
-}) => {
+export function CitasManager({ deportista, onSuccess }: CitasManagerProps) {
+  const { catalogos, isLoading } = useCatalogos();
   const [view, setView] = useState<'list' | 'create' | 'edit'>('list');
+  const [citas, setCitas] = useState<Cita[]>([]);
+  const [proximasCitas, setProximasCitas] = useState<Cita[]>([]);
   const [selectedCita, setSelectedCita] = useState<Cita | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
-
-  // Hooks
-  const { tiposCita, estadosCita, loading: catalogsLoading } = useCatalogos();
-  const {
-    citas,
-    proximasCitas,
-    fetchCitas,
-    fetchProximasCitas,
-    crearCita,
-    actualizarCita,
-  } = useCitas(deportista.id);
-
-  // Form
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-    reset,
-    setValue,
-  } = useForm<FormCita>({
-    defaultValues: {
-      fecha: '',
-      hora: '',
-      tipo_cita_id: '',
-      estado_cita_id: '',
-      observaciones: '',
-    },
+  const [errors, setErrors] = useState<Partial<CitaForm>>({});
+  const [formData, setFormData] = useState<CitaForm>({
+    deportista_id: deportista?.id || '',
+    fecha: '',
+    hora: '',
+    tipo_cita_id: '',
+    estado_cita_id: '',
+    observaciones: '',
   });
 
-  // Cargar citas al montar
+  // Cargar citas cuando cambia el deportista
   useEffect(() => {
-    if (deportista.id) {
-      fetchCitas(deportista.id);
-      fetchProximasCitas(deportista.id);
+    if (deportista?.id) {
+      cargarCitas(deportista.id);
     }
-  }, [deportista.id, fetchCitas, fetchProximasCitas]);
+  }, [deportista?.id]);
 
   // Establecer estado "Pendiente" por defecto
   useEffect(() => {
-    if (estadosCita && estadosCita.length > 0) {
-      const estadoPendiente = estadosCita.find(
+    if (catalogos.estadosCita && catalogos.estadosCita.length > 0) {
+      const estadoPendiente = catalogos.estadosCita.find(
         (e) => e.nombre.toLowerCase() === 'pendiente'
       );
       if (estadoPendiente) {
-        setValue('estado_cita_id', estadoPendiente.id);
+        setFormData((prev) => ({
+          ...prev,
+          estado_cita_id: estadoPendiente.id,
+        }));
       }
     }
-  }, [estadosCita, setValue]);
+  }, [catalogos.estadosCita]);
 
-  // Manejar crear cita
-  const onSubmitCita = async (data: FormCita) => {
+  const cargarCitas = async (deportistaId: string) => {
     try {
-      setIsLoading(true);
+      const todasLasCitas = await citasService.getByDeportistaId(deportistaId);
+      setCitas(todasLasCitas);
+
+      // Filtrar próximas citas (fecha >= hoy)
+      const hoy = new Date();
+      hoy.setHours(0, 0, 0, 0);
+      const proximas = todasLasCitas.filter(
+        (cita) => new Date(cita.fecha) >= hoy
+      );
+      setProximasCitas(proximas);
+    } catch (error) {
+      console.error('Error cargando citas:', error);
+      setErrorMessage('Error al cargar citas');
+    }
+  };
+
+  // ✅ AGREGAR TIPO EXPLÍCITO A value
+  const handleChange = (field: keyof CitaForm, value: string): void => {
+    setFormData((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+    if (errors[field]) {
+      setErrors((prev) => ({
+        ...prev,
+        [field]: undefined,
+      }));
+    }
+  };
+
+  const validateForm = (): boolean => {
+    const newErrors: Partial<CitaForm> = {};
+
+    if (!formData.deportista_id) newErrors.deportista_id = 'Requerido';
+    if (!formData.fecha) newErrors.fecha = 'Requerido';
+    if (!formData.hora) newErrors.hora = 'Requerido';
+    if (!formData.tipo_cita_id) newErrors.tipo_cita_id = 'Requerido';
+    if (!formData.estado_cita_id) newErrors.estado_cita_id = 'Requerido';
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
+    e.preventDefault();
+
+    if (!validateForm()) {
+      toast.error('Por favor completa los campos requeridos');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
       setErrorMessage('');
       setSuccessMessage('');
 
       if (view === 'create') {
-        const nuevaCita = await crearCita({
-          deportista_id: deportista.id || '',
-          fecha: data.fecha,
-          hora: data.hora,
-          tipo_cita_id: data.tipo_cita_id,
-          estado_cita_id: data.estado_cita_id,
-          observaciones: data.observaciones,
+        const citaData: Cita = {
+          deportista_id: formData.deportista_id,
+          fecha: formData.fecha,
+          hora: formData.hora,
+          tipo_cita_id: formData.tipo_cita_id,
+          estado_cita_id: formData.estado_cita_id,
+          observaciones: formData.observaciones,
+        };
+
+        const nuevaCita = await citasService.create(citaData);
+        setSuccessMessage('✅ Cita registrada correctamente');
+        toast.success('Cita creada exitosamente');
+
+        // Reset formulario
+        setFormData({
+          deportista_id: deportista?.id || '',
+          fecha: '',
+          hora: '',
+          tipo_cita_id: '',
+          estado_cita_id:
+            catalogos.estadosCita.find((e) => e.nombre.toLowerCase() === 'pendiente')?.id || '',
+          observaciones: '',
         });
 
-        setSuccessMessage('✅ Cita creada exitosamente');
-        reset();
         setView('list');
-        fetchCitas(deportista.id || '');
-        fetchProximasCitas(deportista.id || '');
+        if (deportista?.id) {
+          cargarCitas(deportista.id);
+        }
 
         if (onSuccess) {
           onSuccess(nuevaCita);
         }
       } else if (view === 'edit' && selectedCita?.id) {
-        const citaActualizada = await actualizarCita(selectedCita.id, {
-          fecha: data.fecha,
-          hora: data.hora,
-          tipo_cita_id: data.tipo_cita_id,
-          estado_cita_id: data.estado_cita_id,
-          observaciones: data.observaciones,
-        });
+        const citaData: Partial<Cita> = {
+          deportista_id: formData.deportista_id,
+          fecha: formData.fecha,
+          hora: formData.hora,
+          tipo_cita_id: formData.tipo_cita_id,
+          estado_cita_id: formData.estado_cita_id,
+          observaciones: formData.observaciones,
+        };
 
-        setSuccessMessage('✅ Cita actualizada exitosamente');
-        reset();
+        await citasService.update(selectedCita.id, citaData);
+        setSuccessMessage('✅ Cita actualizada correctamente');
+        toast.success('Cita actualizada exitosamente');
+
         setView('list');
         setSelectedCita(null);
-        fetchCitas(deportista.id || '');
-        fetchProximasCitas(deportista.id || '');
+        if (deportista?.id) {
+          cargarCitas(deportista.id);
+        }
       }
 
       setTimeout(() => setSuccessMessage(''), 3000);
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Error al guardar cita';
       setErrorMessage(msg);
+      toast.error(msg);
       console.error('Error:', error);
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
   };
 
-  // Manejar editar cita
-  const handleEditCita = (cita: Cita) => {
+  const handleEditCita = (cita: Cita): void => {
     setSelectedCita(cita);
-    setValue('fecha', cita.fecha);
-    setValue('hora', cita.hora);
-    setValue('tipo_cita_id', cita.tipo_cita_id);
-    setValue('estado_cita_id', cita.estado_cita_id);
-    setValue('observaciones', cita.observaciones || '');
+    setFormData({
+      deportista_id: cita.deportista_id,
+      fecha: cita.fecha,
+      hora: cita.hora,
+      tipo_cita_id: cita.tipo_cita_id,
+      estado_cita_id: cita.estado_cita_id,
+      observaciones: cita.observaciones || '',
+    });
     setView('edit');
   };
 
-  // Manejar cancelar cita
-  const handleCancelarCita = async (citaId: string) => {
+  const handleCancelarCita = async (citaId: string): Promise<void> => {
     try {
-      setIsLoading(true);
-      const estadoCancelada = estadosCita.find(
+      setIsSubmitting(true);
+      const estadoCancelada = catalogos.estadosCita.find(
         (e) => e.nombre.toLowerCase() === 'cancelada'
       );
 
@@ -183,32 +231,31 @@ export const CitasManager: React.FC<CitasManagerProps> = ({
         throw new Error('Estado "Cancelada" no encontrado');
       }
 
-      await actualizarCita(citaId, {
+      await citasService.update(citaId, {
         estado_cita_id: estadoCancelada.id,
       });
 
       setSuccessMessage('✅ Cita cancelada');
-      fetchCitas(deportista.id || '');
-      fetchProximasCitas(deportista.id || '');
+      if (deportista?.id) {
+        cargarCitas(deportista.id);
+      }
 
       setTimeout(() => setSuccessMessage(''), 2000);
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Error al cancelar';
       setErrorMessage(msg);
+      toast.error(msg);
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
   };
 
-  // Formatear hora
-  const formatHora = (hora: string) => {
+  const formatHora = (hora: string): string => {
     if (!hora) return '-';
-    const [h, m] = hora.split(':');
-    return `${h}:${m}`;
+    return hora;
   };
 
-  // Formatear fecha
-  const formatFecha = (fecha: string) => {
+  const formatFecha = (fecha: string): string => {
     return new Date(fecha).toLocaleDateString('es-CO', {
       year: 'numeric',
       month: 'long',
@@ -216,8 +263,7 @@ export const CitasManager: React.FC<CitasManagerProps> = ({
     });
   };
 
-  // Color según estado
-  const getEstadoColor = (estadoNombre?: string) => {
+  const getEstadoColor = (estadoNombre?: string): string => {
     if (!estadoNombre) return 'bg-gray-100 text-gray-700';
     const lower = estadoNombre.toLowerCase();
     if (lower === 'pendiente') return 'bg-yellow-100 text-yellow-700';
@@ -227,31 +273,31 @@ export const CitasManager: React.FC<CitasManagerProps> = ({
     return 'bg-gray-100 text-gray-700';
   };
 
-  if (catalogsLoading) {
-    return (
-      <div className="flex items-center justify-center p-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-        <span className="ml-4">Cargando...</span>
-      </div>
-    );
-  }
-
-  // Actualizar la lógica de toggle expandedId
-  const handleToggleExpanded = (citaId: string | undefined) => {
+  // ✅ AGREGAR TIPO EXPLÍCITO A citaId
+  const handleToggleExpanded = (citaId?: string): void => {
     if (!citaId) return;
     setExpandedId(expandedId === citaId ? null : citaId);
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <span className="ml-4">Cargando catálogos...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-6xl mx-auto p-6 bg-white rounded-lg shadow-lg">
       {/* Encabezado */}
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-800">
-          Gestión de Citas
-        </h1>
-        <p className="text-gray-600 mt-2">
-          {deportista.nombres} {deportista.apellidos}
-        </p>
+        <h1 className="text-3xl font-bold text-gray-800">Gestión de Citas</h1>
+        {deportista && (
+          <p className="text-gray-600 mt-2">
+            {deportista.nombres} {deportista.apellidos}
+          </p>
+        )}
       </div>
 
       {/* Mensajes */}
@@ -269,9 +315,10 @@ export const CitasManager: React.FC<CitasManagerProps> = ({
         </div>
       )}
 
-      {/* Botones de navegación */}
+      {/* VIEW: LISTAR CITAS */}
       {view === 'list' && (
-        <div className="mb-6 flex gap-2">
+        <div className="space-y-6">
+          {/* Botón nueva cita */}
           <button
             onClick={() => setView('create')}
             className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center gap-2"
@@ -279,12 +326,7 @@ export const CitasManager: React.FC<CitasManagerProps> = ({
             <Plus className="w-5 h-5" />
             Nueva Cita
           </button>
-        </div>
-      )}
 
-      {/* VIEW: LISTAR CITAS */}
-      {view === 'list' && (
-        <div className="space-y-6">
           {/* Próximas citas */}
           {proximasCitas.length > 0 && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
@@ -382,9 +424,7 @@ export const CitasManager: React.FC<CitasManagerProps> = ({
                             <p className="text-sm text-gray-600 mb-1">
                               Observaciones:
                             </p>
-                            <p className="text-gray-800">
-                              {cita.observaciones}
-                            </p>
+                            <p className="text-gray-800">{cita.observaciones}</p>
                           </div>
                         )}
 
@@ -431,103 +471,106 @@ export const CitasManager: React.FC<CitasManagerProps> = ({
             onClick={() => {
               setView('list');
               setSelectedCita(null);
-              reset();
+              setFormData({
+                deportista_id: deportista?.id || '',
+                fecha: '',
+                hora: '',
+                tipo_cita_id: '',
+                estado_cita_id:
+                  catalogos.estadosCita.find((e) => e.nombre.toLowerCase() === 'pendiente')?.id || '',
+                observaciones: '',
+              });
             }}
             className="mb-4 text-blue-600 hover:text-blue-700 flex items-center gap-1"
           >
             ← Volver
           </button>
 
-          <FormSection
-            title={view === 'create' ? 'Nueva Cita' : 'Editar Cita'}
-          >
-            <form onSubmit={handleSubmit(onSubmitCita)} className="space-y-6">
-              <FormGrid columns={2}>
-                <InputField
-                  type="date"
-                  label="Fecha"
-                  {...register('fecha', {
-                    required: 'Este campo es requerido',
-                  })}
-                  error={errors.fecha?.message}
-                />
+          <form onSubmit={handleSubmit} className="space-y-6 bg-gray-50 p-6 rounded-lg">
+            <h2 className="text-xl font-bold text-gray-800">
+              {view === 'create' ? 'Nueva Cita' : 'Editar Cita'}
+            </h2>
 
-                <InputField
-                  type="time"
-                  label="Hora"
-                  {...register('hora', {
-                    required: 'Este campo es requerido',
-                  })}
-                  error={errors.hora?.message}
-                />
-              </FormGrid>
-
-              <FormGrid columns={2}>
-                <SelectField
-                  label="Tipo de Cita"
-                  {...register('tipo_cita_id', {
-                    required: 'Este campo es requerido',
-                  })}
-                  error={errors.tipo_cita_id?.message}
-                >
-                  <option value="">Selecciona un tipo...</option>
-                  {tiposCita.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.nombre}
-                    </option>
-                  ))}
-                </SelectField>
-
-                <SelectField
-                  label="Estado"
-                  {...register('estado_cita_id', {
-                    required: 'Este campo es requerido',
-                  })}
-                  error={errors.estado_cita_id?.message}
-                >
-                  <option value="">Selecciona un estado...</option>
-                  {estadosCita.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.nombre}
-                    </option>
-                  ))}
-                </SelectField>
-              </FormGrid>
-
-              <TextAreaField
-                label="Observaciones (Opcional)"
-                placeholder="Notas sobre la cita..."
-                rows={4}
-                {...register('observaciones')}
+            <div className="grid grid-cols-2 gap-4">
+              {/* FECHA */}
+              <InputDate
+                label="Fecha"
+                value={formData.fecha}
+                onChange={(value) => handleChange('fecha', value)}
+                required
+                error={errors.fecha}
               />
 
-              <div className="flex gap-4 pt-4">
-                <FormButton type="submit" disabled={isLoading}>
-                  {isLoading
-                    ? 'Guardando...'
-                    : view === 'create'
-                    ? 'Crear Cita'
-                    : 'Guardar Cambios'}
-                </FormButton>
+              {/* HORA */}
+              <InputTime
+                label="Hora"
+                value={formData.hora}
+                onChange={(value) => handleChange('hora', value)}
+                required
+                error={errors.hora}
+              />
+            </div>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    setView('list');
-                    setSelectedCita(null);
-                    reset();
-                  }}
-                  className="px-6 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition"
-                >
-                  Cancelar
-                </button>
-              </div>
-            </form>
-          </FormSection>
+            <div className="grid grid-cols-2 gap-4">
+              {/* TIPO CITA */}
+              <SelectCatalogo
+                label="Tipo de Cita"
+                value={formData.tipo_cita_id}
+                onChange={(value) => handleChange('tipo_cita_id', value)}
+                options={catalogos.tiposCita}
+                required
+                error={errors.tipo_cita_id}
+              />
+
+              {/* ESTADO CITA */}
+              <SelectCatalogo
+                label="Estado"
+                value={formData.estado_cita_id}
+                onChange={(value) => handleChange('estado_cita_id', value)}
+                options={catalogos.estadosCita}
+                required
+                error={errors.estado_cita_id}
+              />
+            </div>
+
+            {/* OBSERVACIONES */}
+            <TextArea
+              label="Observaciones (Opcional)"
+              value={formData.observaciones || ''}
+              onChange={(value) => handleChange('observaciones', value)}
+              placeholder="Notas sobre la cita..."
+              rows={4}
+            />
+
+            <div className="flex gap-4 pt-4">
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="flex-1 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-blue-400 transition"
+              >
+                {isSubmitting
+                  ? 'Guardando...'
+                  : view === 'create'
+                  ? 'Crear Cita'
+                  : 'Guardar Cambios'}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setView('list');
+                  setSelectedCita(null);
+                }}
+                className="flex-1 px-6 py-2 bg-gray-300 text-gray-800 rounded-lg hover:bg-gray-400 transition"
+              >
+                Cancelar
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </div>
   );
-};
+}
 
 export default CitasManager;

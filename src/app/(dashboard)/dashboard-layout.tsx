@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Navbar from '../components/Navbar';
 
@@ -10,6 +10,7 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
+  const [currentView, setCurrentView] = useState('dashboard');
 
   useEffect(() => {
     // Verificar si hay token (protección de rutas)
@@ -24,7 +25,7 @@ export default function DashboardLayout({
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navbar />
+      <Navbar onNavigate={setCurrentView} currentView={currentView} />
       <main className="min-h-screen">
         {children}
       </main>

@@ -14,7 +14,7 @@ import axios, { AxiosInstance } from 'axios';
 // CONFIGURACIÓN
 // ============================================================================
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
 const API_TIMEOUT = parseInt(import.meta.env.VITE_API_TIMEOUT || '10000');
 
 console.log(`🚀 API Client inicializado con URL: ${API_BASE_URL}`);
@@ -59,22 +59,40 @@ export interface CatalogoItem {
 
 // NIVEL 2: ENTIDADES PRINCIPALES
 export interface Deportista {
-  id?: string; // UUID
-  tipo_documento_id: string; // FK → catalogo_items
-  numero_documento: string; // UNIQUE
+  id: string;
+  // Información básica
+  tipo_documento_id: string;
+  numero_documento: string;
   nombres: string;
   apellidos: string;
-  fecha_nacimiento: string; // ISO date
-  sexo_id: string; // FK → catalogo_items
-  telefono?: string;
+  
+  // Información adicional
+  fecha_nacimiento?: string;
+  edad?: number;
+  sexo_id?: string;
+  
+  // Contacto
   email?: string;
+  telefono?: string;
   direccion?: string;
-  estado_id: string; // FK → catalogo_items
+  
+  // Deportivo
+  tipo_deporte?: string;
+  deporte_id?: string;
+  categoria?: string;
+  
+  // Estado
+  estado_id: string;
+  
+  // Metadata
+  foto?: string | null;
   created_at?: string;
-  // Relaciones cargadas (para SELECT con JOINs)
-  tipo_documento?: CatalogoItem;
-  sexo?: CatalogoItem;
-  estado?: CatalogoItem;
+  updated_at?: string;
+  
+  // Propiedades calculadas/relacionadas (opcionales)
+  tipoDocumento?: string;
+  numeroDocumento?: string;
+  tipoDeporte?: string;
 }
 
 export interface Formulario {
@@ -248,42 +266,42 @@ export const catalogosService = {
 
   /**
    * Obtener tipos de documento
-   * GET /api/v1/catalogos/tipos_documento/items
+   * GET /api/v1/catalogos/tipo_documento/items
    */
   async getTiposDocumento() {
-    return this.getItems('tipos_documento');
+    return this.getItems('tipo_documento');
   },
 
   /**
    * Obtener sexos
-   * GET /api/v1/catalogos/sexos/items
+   * GET /api/v1/catalogos/sexo/items
    */
   async getSexos() {
-    return this.getItems('sexos');
+    return this.getItems('sexo');
   },
 
   /**
    * Obtener estados de deportista
-   * GET /api/v1/catalogos/estados/items
+   * GET /api/v1/catalogos/estado_deportista/items
    */
   async getEstadosDeportista() {
-    return this.getItems('estados');
+    return this.getItems('estado_deportista');
   },
 
   /**
    * Obtener tipos de cita
-   * GET /api/v1/catalogos/tipos_cita/items
+   * GET /api/v1/catalogos/tipo_cita/items
    */
   async getTiposCita() {
-    return this.getItems('tipos_cita');
+    return this.getItems('tipo_cita');
   },
 
   /**
    * Obtener estados de cita
-   * GET /api/v1/catalogos/estados_cita/items
+   * GET /api/v1/catalogos/estado_cita/items
    */
   async getEstadosCita() {
-    return this.getItems('estados_cita');
+    return this.getItems('estado_cita');
   },
 
   /**
@@ -525,8 +543,35 @@ export const formularioRespuestasService = {
   },
 
   /**
-   * Guardar múltiples respuestas de un grupo
+   * Crear múltiples respuestas en un batch
+   * POST /api/v1/formulario_respuestas/batch
+   * 
+   * Permite guardar varias respuestas de un grupo en una sola llamada
+   * 
+   * {
+   *   grupo_id: "uuid-grupo",
+   *   respuestas: [
+   *     { campo: "motivo_consulta", valor: "Dolor en rodilla" },
+   *     { campo: "fecha_lesion", valor: "2025-01-20" }
+   *   ]
+   * }
+   */
+  async crearMultiples(data: {
+    grupo_id: string;
+    respuestas: Array<{ campo: string; valor: string }>;
+  }) {
+    const response = await api.post<FormularioRespuesta[]>(
+      '/formulario_respuestas/batch',
+      data
+    );
+    return response.data;
+  },
+
+  /**
+   * Guardar múltiples respuestas con estructura completa
    * POST /api/v1/formulario_respuestas/bulk
+   * 
+   * Para cuando necesitas enviar la estructura completa de FormularioRespuesta
    */
   async createBulk(respuestas: FormularioRespuesta[]) {
     const response = await api.post<FormularioRespuesta[]>(
@@ -550,12 +595,34 @@ export const formularioRespuestasService = {
   /**
    * Obtener respuestas de un grupo específico
    * GET /api/v1/respuesta_grupos/:id/respuestas
+   * 
+   * Devuelve todas las FormularioRespuesta asociadas a un grupo
    */
   async getByGrupoId(grupoId: string) {
     const response = await api.get<FormularioRespuesta[]>(
       `/respuesta_grupos/${grupoId}/respuestas`
     );
     return response.data;
+  },
+
+  /**
+   * Actualizar una respuesta existente
+   * PUT /api/v1/formulario_respuestas/:id
+   */
+  async update(id: string, data: Partial<FormularioRespuesta>) {
+    const response = await api.put<FormularioRespuesta>(
+      `/formulario_respuestas/${id}`,
+      data
+    );
+    return response.data;
+  },
+
+  /**
+   * Eliminar una respuesta
+   * DELETE /api/v1/formulario_respuestas/:id
+   */
+  async delete(id: string) {
+    await api.delete(`/formulario_respuestas/${id}`);
   },
 };
 
