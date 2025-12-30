@@ -7,6 +7,7 @@ import { Inicio } from "./components/Inicio";
 import { RegistroDeportista } from "./components/RegistroDeportista";
 import { HistoriaClinica } from "./components/HistoriaClinica";
 import { SelectDeportista } from "./components/SelectDeportista";
+import { GestionCitas } from "./components/GestionCitas";
 import { CitasManager } from "./components/CitasManager";
 import { ListadoDeportistas } from "./components/ListadoDeportistas";
 import { DetalleDeportista } from "./components/DetalleDeportista";
@@ -71,7 +72,7 @@ export default function App() {
           <ListadoDeportistas />
         );
       case "consultas":
-        return <CitasManager />;
+        return <GestionCitas />;
       case "configuracion":
         return (
           <div className="p-8">
