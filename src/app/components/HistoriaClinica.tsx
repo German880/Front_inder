@@ -24,6 +24,14 @@ import { PlanTratamiento } from './historia/PlanTratamiento';
 // TIPOS
 // ============================================================================
 
+type TipoAlergia = 'Respiratorias' | 'Digestivas' | 'Dermatológicas' | 'Medicamentosas' | 'Otra';
+
+type AlergiaSeleccionada = {
+  tipo: TipoAlergia;
+  subtipos: string[];
+  detalles: string;
+};
+
 export type HistoriaClinicaData = {
   // Paso 1: Evaluación
   tipoCita: string;
@@ -31,6 +39,7 @@ export type HistoriaClinicaData = {
   enfermedadActual: string;
   
   // Paso 2: Antecedentes Médicos
+  deportista_id?: string;
   antecedentesPersonales: Array<{ codigoCIE11: string; nombreEnfermedad: string; observaciones: string }>;
   antecedentesFamiliares: Array<{ codigoCIE11: string; nombreEnfermedad: string; familiar: string; observaciones: string }>;
   lesionesDeportivas: boolean;
@@ -39,7 +48,7 @@ export type HistoriaClinicaData = {
   cirugiasPrevias: boolean;
   detalleCirugias: string;
   tieneAlergias: boolean;
-  alergias: string;
+  alergias: AlergiaSeleccionada[];
   tomaMedicacion: boolean;
   medicacionActual: string;
   vacunas: string[];
@@ -119,7 +128,7 @@ export const HistoriaClinica: React.FC<HistoriaClinicaProps> = ({
     cirugiasPrevias: false,
     detalleCirugias: "",
     tieneAlergias: false,
-    alergias: "",
+    alergias: [],
     tomaMedicacion: false,
     medicacionActual: "",
     vacunas: [],

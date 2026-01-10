@@ -11,7 +11,7 @@ export interface CatalogosContexto {
   estados: CatalogoItem[];
   tiposCita: CatalogoItem[];
   estadosCita: CatalogoItem[];
-  loading: boolean;
+  isLoading: boolean;
   error: string | null;
 }
 
@@ -23,9 +23,9 @@ export interface CatalogosContexto {
  * Hook para cargar todos los catálogos al iniciar la aplicación
  * 
  * Uso:
- * const { tiposDocumento, sexos, estados, loading } = useCatalogos();
+ * const { tiposDocumento, sexos, estados, isLoading } = useCatalogos();
  * 
- * if (loading) return <Loading />;
+ * if (isLoading) return <Loading />;
  * 
  * <Select name="tipo_documento_id" options={tiposDocumento} />
  * <Select name="sexo_id" options={sexos} />
@@ -37,26 +37,52 @@ export function useCatalogos(): CatalogosContexto {
   const [estados, setEstados] = useState<CatalogoItem[]>([]);
   const [tiposCita, setTiposCita] = useState<CatalogoItem[]>([]);
   const [estadosCita, setEstadosCita] = useState<CatalogoItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const cargarCatalogos = async () => {
       try {
-        setLoading(true);
-        const catalogos = await catalogosService.getAllCatalogos();
+        setIsLoading(true);
+        console.log('🔄 Cargando catálogos...');
         
-        setTiposDocumento(catalogos.tiposDocumento || []);
-        setSexos(catalogos.sexos || []);
-        setEstados(catalogos.estados || []);
-        setTiposCita(catalogos.tiposCita || []);
-        setEstadosCita(catalogos.estadosCita || []);
+        const catalogos = await catalogosService.getAllCatalogos();
+        console.log('📦 Respuesta del servicio:', catalogos);
+        
+        // Validar y establecer cada catálogo
+        const tiposDoc = Array.isArray(catalogos.tiposDocumento) ? catalogos.tiposDocumento : [];
+        const sex = Array.isArray(catalogos.sexos) ? catalogos.sexos : [];
+        const est = Array.isArray(catalogos.estados) ? catalogos.estados : [];
+        const tiposCit = Array.isArray(catalogos.tiposCita) ? catalogos.tiposCita : [];
+        const estadosCit = Array.isArray(catalogos.estadosCita) ? catalogos.estadosCita : [];
+        
+        console.log('✅ Catálogos validados:', {
+          tiposDocumento: tiposDoc.length,
+          sexos: sex.length,
+          estados: est.length,
+          tiposCita: tiposCit.length,
+          estadosCita: estadosCit.length,
+        });
+        
+        setTiposDocumento(tiposDoc);
+        setSexos(sex);
+        setEstados(est);
+        setTiposCita(tiposCit);
+        setEstadosCita(estadosCit);
         setError(null);
-      } catch (err) {
-        console.error('Error cargando catálogos:', err);
-        setError('Error al cargar los catálogos');
+      } catch (err: any) {
+        console.error('❌ Error cargando catálogos:', err);
+        const mensajeError = err.message || 'Error al cargar los catálogos';
+        setError(mensajeError);
+        
+        // Establecer valores por defecto para evitar crashes
+        setTiposDocumento([]);
+        setSexos([]);
+        setEstados([]);
+        setTiposCita([]);
+        setEstadosCita([]);
       } finally {
-        setLoading(false);
+        setIsLoading(false);
       }
     };
 
@@ -69,7 +95,7 @@ export function useCatalogos(): CatalogosContexto {
     estados,
     tiposCita,
     estadosCita,
-    loading,
+    isLoading,
     error,
   };
 }

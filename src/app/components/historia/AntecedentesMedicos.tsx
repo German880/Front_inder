@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { HistoriaClinicaData } from "../HistoriaClinica";
+import ComponenteAlergias from './ComponenteAlergias';
+import VacunasHistoriaClinica from '../VacunasHistoriaClinica';
 import { ChevronRight, ChevronLeft, Plus, Trash2, User, Users, AlertCircle } from "lucide-react";
 import { buscarEnfermedadPorCodigo, buscarCodigosPorNombre } from "./cie11Database";
 
@@ -10,8 +12,6 @@ type Props = {
   onPrevious: () => void;
   onCancel?: () => void;
 };
-
-const vacunasDisponibles = ["Tétanos", "Hepatitis", "Influenza", "COVID-19", "Fiebre Amarilla", "Otras"];
 
 const familiares = [
   "Padre",
@@ -27,7 +27,6 @@ const familiares = [
 ];
 
 export function AntecedentesMedicos({ data, updateData, onNext, onPrevious, onCancel }: Props) {
-  // Estados para agregar antecedentes personales
   const [nuevoCodigoPersonal, setNuevoCodigoPersonal] = useState("");
   const [nuevoNombrePersonal, setNuevoNombrePersonal] = useState("");
   const [nuevaObservacionPersonal, setNuevaObservacionPersonal] = useState("");
@@ -35,7 +34,6 @@ export function AntecedentesMedicos({ data, updateData, onNext, onPrevious, onCa
   const [sugerenciasPersonales, setSugerenciasPersonales] = useState<Array<{ codigo: string; nombre: string }>>([]);
   const [mostrarSugerenciasPersonales, setMostrarSugerenciasPersonales] = useState(false);
 
-  // Estados para agregar antecedentes familiares
   const [nuevoCodigoFamiliar, setNuevoCodigoFamiliar] = useState("");
   const [nuevoNombreFamiliar, setNuevoNombreFamiliar] = useState("");
   const [nuevoFamiliar, setNuevoFamiliar] = useState("");
@@ -44,14 +42,6 @@ export function AntecedentesMedicos({ data, updateData, onNext, onPrevious, onCa
   const [sugerenciasFamiliares, setSugerenciasFamiliares] = useState<Array<{ codigo: string; nombre: string }>>([]);
   const [mostrarSugerenciasFamiliares, setMostrarSugerenciasFamiliares] = useState(false);
 
-  const handleVacunaToggle = (vacuna: string) => {
-    const updated = data.vacunas.includes(vacuna)
-      ? data.vacunas.filter((v) => v !== vacuna)
-      : [...data.vacunas, vacuna];
-    updateData({ vacunas: updated });
-  };
-
-  // Buscar automáticamente por código (Antecedentes personales)
   const handleCodigoPersonalChange = (codigo: string) => {
     const codigoUpper = codigo.toUpperCase();
     setNuevoCodigoPersonal(codigoUpper);
@@ -71,7 +61,6 @@ export function AntecedentesMedicos({ data, updateData, onNext, onPrevious, onCa
     }
   };
 
-  // Buscar automáticamente por nombre de enfermedad (Antecedentes personales)
   const handleNombrePersonalChange = (nombre: string) => {
     setNuevoNombrePersonal(nombre);
     setErrorCodigoPersonal("");
@@ -82,7 +71,6 @@ export function AntecedentesMedicos({ data, updateData, onNext, onPrevious, onCa
         setSugerenciasPersonales(resultados);
         setMostrarSugerenciasPersonales(true);
       } else {
-        // Permitir escribir enfermedad personalizada
         setNuevoCodigoPersonal("");
         setSugerenciasPersonales([]);
         setMostrarSugerenciasPersonales(false);
@@ -93,7 +81,6 @@ export function AntecedentesMedicos({ data, updateData, onNext, onPrevious, onCa
     }
   };
 
-  // Buscar automáticamente por código (Antecedentes familiares)
   const handleCodigoFamiliarChange = (codigo: string) => {
     const codigoUpper = codigo.toUpperCase();
     setNuevoCodigoFamiliar(codigoUpper);
@@ -113,7 +100,6 @@ export function AntecedentesMedicos({ data, updateData, onNext, onPrevious, onCa
     }
   };
 
-  // Buscar automáticamente por nombre de enfermedad (Antecedentes familiares)
   const handleNombreFamiliarChange = (nombre: string) => {
     setNuevoNombreFamiliar(nombre);
     setErrorCodigoFamiliar("");
@@ -124,7 +110,6 @@ export function AntecedentesMedicos({ data, updateData, onNext, onPrevious, onCa
         setSugerenciasFamiliares(resultados);
         setMostrarSugerenciasFamiliares(true);
       } else {
-        // Permitir escribir enfermedad personalizada
         setNuevoCodigoFamiliar("");
         setSugerenciasFamiliares([]);
         setMostrarSugerenciasFamiliares(false);
@@ -135,7 +120,6 @@ export function AntecedentesMedicos({ data, updateData, onNext, onPrevious, onCa
     }
   };
 
-  // Agregar antecedente personal
   const handleAgregarPersonal = () => {
     if (!nuevoCodigoPersonal.trim()) {
       alert("Ingrese un código CIE-11");
@@ -156,7 +140,6 @@ export function AntecedentesMedicos({ data, updateData, onNext, onPrevious, onCa
       antecedentesPersonales: [...data.antecedentesPersonales, nuevoAntecedente],
     });
 
-    // Limpiar campos
     setNuevoCodigoPersonal("");
     setNuevoNombrePersonal("");
     setNuevaObservacionPersonal("");
@@ -165,7 +148,6 @@ export function AntecedentesMedicos({ data, updateData, onNext, onPrevious, onCa
     setMostrarSugerenciasPersonales(false);
   };
 
-  // Agregar antecedente familiar
   const handleAgregarFamiliar = () => {
     if (!nuevoCodigoFamiliar.trim()) {
       alert("Ingrese un código CIE-11");
@@ -191,7 +173,6 @@ export function AntecedentesMedicos({ data, updateData, onNext, onPrevious, onCa
       antecedentesFamiliares: [...data.antecedentesFamiliares, nuevoAntecedente],
     });
 
-    // Limpiar campos
     setNuevoCodigoFamiliar("");
     setNuevoNombreFamiliar("");
     setNuevoFamiliar("");
@@ -201,13 +182,11 @@ export function AntecedentesMedicos({ data, updateData, onNext, onPrevious, onCa
     setMostrarSugerenciasFamiliares(false);
   };
 
-  // Eliminar antecedente personal
   const handleEliminarPersonal = (index: number) => {
     const updated = data.antecedentesPersonales.filter((_, i) => i !== index);
     updateData({ antecedentesPersonales: updated });
   };
 
-  // Eliminar antecedente familiar
   const handleEliminarFamiliar = (index: number) => {
     const updated = data.antecedentesFamiliares.filter((_, i) => i !== index);
     updateData({ antecedentesFamiliares: updated });
@@ -222,7 +201,6 @@ export function AntecedentesMedicos({ data, updateData, onNext, onPrevious, onCa
           <h3 className="text-lg font-semibold text-blue-900">Antecedentes Personales</h3>
         </div>
 
-        {/* Formulario para agregar antecedente personal */}
         <div className="bg-white p-4 rounded-lg space-y-4 mb-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
@@ -308,7 +286,6 @@ export function AntecedentesMedicos({ data, updateData, onNext, onPrevious, onCa
           </button>
         </div>
 
-        {/* Lista de antecedentes personales */}
         {data.antecedentesPersonales.length > 0 && (
           <div className="space-y-2">
             <p className="text-sm font-medium text-gray-700 mb-2">Antecedentes registrados:</p>
@@ -357,7 +334,6 @@ export function AntecedentesMedicos({ data, updateData, onNext, onPrevious, onCa
           <h3 className="text-lg font-semibold text-gray-900">Antecedentes Familiares</h3>
         </div>
 
-        {/* Formulario para agregar antecedente familiar */}
         <div className="bg-white p-4 rounded-lg space-y-4 mb-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
@@ -461,7 +437,6 @@ export function AntecedentesMedicos({ data, updateData, onNext, onPrevious, onCa
           </button>
         </div>
 
-        {/* Lista de antecedentes familiares */}
         {data.antecedentesFamiliares.length > 0 && (
           <div className="space-y-2">
             <p className="text-sm font-medium text-gray-700 mb-2">Antecedentes registrados:</p>
@@ -621,22 +596,23 @@ export function AntecedentesMedicos({ data, updateData, onNext, onPrevious, onCa
               type="radio"
               name="alergias"
               checked={data.tieneAlergias === false}
-              onChange={() => updateData({ tieneAlergias: false, alergias: "" })}
+              onChange={() => updateData({ tieneAlergias: false, alergias: [] })}
               className="w-4 h-4 text-blue-600 focus:ring-2 focus:ring-blue-500"
             />
             <span className="text-gray-700">No</span>
           </label>
         </div>
 
-        {data.tieneAlergias && (
-          <input
-            type="text"
-            value={data.alergias}
-            onChange={(e) => updateData({ alergias: e.target.value })}
-            placeholder="Especifique las alergias (medicamentos, alimentos, sustancias)..."
-            className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        )}
+        <ComponenteAlergias
+          tieneAlergias={data.tieneAlergias}
+          alergias={data.alergias}
+          onChangeTieneAlergias={(value) => 
+            updateData({ tieneAlergias: value })
+          }
+          onChangeAlergias={(alergias) => 
+            updateData({ alergias })
+          }
+        />
       </div>
 
       {/* MEDICACIÓN ACTUAL */}
@@ -679,19 +655,19 @@ export function AntecedentesMedicos({ data, updateData, onNext, onPrevious, onCa
       {/* VACUNAS */}
       <div>
         <label className="block mb-3 font-medium text-gray-800">Vacunas</label>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          {vacunasDisponibles.map((vacuna) => (
-            <label key={vacuna} className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={data.vacunas.includes(vacuna)}
-                onChange={() => handleVacunaToggle(vacuna)}
-                className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
-              />
-              <span className="text-gray-700">{vacuna}</span>
-            </label>
-          ))}
-        </div>
+        <p className="text-sm text-gray-600 mb-4">
+          Aquí se muestran las vacunas registradas del deportista. Puede agregar nuevas vacunas, cargar certificados y descargar archivos.
+        </p>
+        {data.deportista_id && typeof data.deportista_id === 'string' ? (
+          <VacunasHistoriaClinica 
+            deportista_id={data.deportista_id}
+            readonly={false}
+          />
+        ) : (
+          <p className="text-sm text-gray-500 italic text-center py-4">
+            Los datos del deportista se cargarán cuando se abra la historia clínica.
+          </p>
+        )}
       </div>
 
       {/* Botones */}
