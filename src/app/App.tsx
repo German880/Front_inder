@@ -35,7 +35,8 @@ export default function App() {
 
   const handleRegistroSubmit = async (data: any) => {
     try {
-      await deportistasService.create(data);
+      // El deportista ya fue creado en el paso 1 de RegistroDeportista
+      // Solo necesitamos navegar a la siguiente vista
       toast.success("Deportista registrado correctamente");
       setCurrentView("historia");
     } catch (error) {
@@ -44,12 +45,17 @@ export default function App() {
     }
   };
 
+  const handleRegistroCancel = () => {
+    // Volver a la vista de listado de deportistas
+    setCurrentView("deportistas");
+  };
+
   const renderView = () => {
     switch (currentView) {
       case "inicio":
         return <Inicio onNavigate={setCurrentView} />;
       case "registro":
-        return <RegistroDeportista onSubmit={handleRegistroSubmit} />;
+        return <RegistroDeportista onSubmit={handleRegistroSubmit} onCancel={handleRegistroCancel} />;
       case "historia":
         return (
           <SelectDeportista

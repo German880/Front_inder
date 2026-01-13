@@ -82,13 +82,14 @@ const MAPEO_CATALOGOS = {
 
 type Props = {
   onSubmit?: (data: any) => Promise<void>;
+  onCancel?: () => void;
 };
 
 // ============================================================================
 // COMPONENTE
 // ============================================================================
 
-export function RegistroDeportista({ onSubmit: propOnSubmit }: Props = {}) {
+export function RegistroDeportista({ onSubmit: propOnSubmit, onCancel: propOnCancel }: Props = {}) {
   const [paso, setPaso] = useState<1 | 2>(1);
   const [edad, setEdad] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -224,6 +225,31 @@ export function RegistroDeportista({ onSubmit: propOnSubmit }: Props = {}) {
 
   const esColombia = nacionalidad === "Colombia";
   const ciudadesDisponibles = departamento ? CIUDADES_POR_DEPARTAMENTO[departamento] || [] : [];
+
+  const handleCancel = async () => {
+    try {
+      // Si se canceló después de crear el deportista, eliminar ese registro
+      if (deportistaId) {
+        console.log("🗑️ Eliminando deportista:", deportistaId);
+        await fetch(`http://localhost:8000/api/v1/deportistas/${deportistaId}`, {
+          method: 'DELETE',
+        });
+      }
+      
+      // Limpiar datos y volver a paso 1
+      setDeportistaId("");
+      setPaso(1);
+      reset();
+      
+      // Llamar callback si existe
+      if (propOnCancel) {
+        propOnCancel();
+      }
+    } catch (error) {
+      console.error("❌ Error al cancelar registro:", error);
+      toast.error("Error al cancelar el registro");
+    }
+  };
 
   // =========================================================================
   // RENDER
@@ -386,6 +412,13 @@ export function RegistroDeportista({ onSubmit: propOnSubmit }: Props = {}) {
 
             <div className="flex gap-3 pt-6 border-t border-gray-200">
               <button
+                type="button"
+                onClick={handleCancel}
+                className="flex-1 flex items-center justify-center gap-2 bg-red-600 text-white py-3 px-6 rounded-md hover:bg-red-700 font-medium"
+              >
+                Cancelar
+              </button>
+              <button
                 type="submit"
                 disabled={isLoading}
                 className="flex-1 flex items-center justify-center gap-2 bg-blue-600 text-white py-3 px-6 rounded-md hover:bg-blue-700 disabled:opacity-50 font-medium"
@@ -418,6 +451,13 @@ export function RegistroDeportista({ onSubmit: propOnSubmit }: Props = {}) {
             )}
 
             <div className="flex gap-3 pt-6 border-t border-gray-200">
+              <button
+                type="button"
+                onClick={handleCancel}
+                className="flex-1 flex items-center justify-center gap-2 bg-red-600 text-white py-3 px-6 rounded-md hover:bg-red-700 font-medium"
+              >
+                Cancelar
+              </button>
               <button
                 onClick={() => setPaso(1)}
                 className="flex-1 flex items-center justify-center gap-2 bg-gray-300 text-gray-700 py-3 px-6 rounded-md hover:bg-gray-400 font-medium"
